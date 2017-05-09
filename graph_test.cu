@@ -19,6 +19,7 @@
 #include <curand_kernel.h>
 
 #define LARGE_THRESHOLD_VAL 10000
+#define NUM_BUCKETS 100
 
 __device__ __host__ unsigned int FNVhashGPU(unsigned int value, unsigned int tableSize)
 {
@@ -121,13 +122,24 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
 
   for (size_t i = 0; i <rounds; i++) {
     int currIdx = rounds*total_threads + thread_id;
-    char * entry = entries[currIdx];
+    int * entry = &entries[currIdx];
 
     //calculate edge properties
     #warning fix these to be real
-    int bucket1 = hash(entry);
-    int fp = fingerprint(entry);
-    int bucket2 = bucket1 ^ hash(fp);
+    unsigned int bucket1;
+    hash_item((char*) entry,
+                  4,
+                  NUM_BUCKETS
+    		          HASHFUN_MD5,
+                  &bucket1);
+    unsigned fp = FNVhashGPU(entry, 256);
+    unsigned int fpHash;
+    hash_item((char*) &fp,
+                  4,
+                  NUM_BUCKETS
+    		          HASHFUN_MD5,
+                  &fpHash);
+    unsigned bucket2 = bucket1 ^ fpHash;
 
     //build edge
     g->edges[i].fp = fp;
