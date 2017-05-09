@@ -20,6 +20,23 @@
 
 #define LARGE_THRESHOLD_VAL 10000
 
+__device__ __host__ unsigned int FNVhashGPU(unsigned int value, unsigned int tableSize)
+{
+    unsigned char p[4];
+    p[0] = (value >> 24) & 0xFF;
+    p[1] = (value >> 16) & 0xFF;
+    p[2] = (value >> 8) & 0xFF;
+    p[3] = value & 0xFF;
+
+    unsigned int h = 2166136261;
+
+    for (int i = 0; i < 4; i++){
+        h = (h * 16777619) ^ p[i];
+    }
+
+    return h % tableSize;
+}
+
 template <typename T_file>
 void openFileToAccess( T_file& input_file, std::string file_name ) {
 	input_file.open( file_name.c_str() );
@@ -55,7 +72,7 @@ class Graph {
     int buckets[num_buckets]; //value at index i is the number of indegrees to a bucket i
   	Edge * edges;
   	int num_edges;
-  
+
     __device__ __host__ Graph(int num_buckets, int max_bucket_size, int size) {
       num_edges = size;
       for(int i=0; i<num_buckets; i++){
@@ -63,7 +80,7 @@ class Graph {
       }
       edges = null;
     }
-  
+
 }
 
 class Edge {
@@ -97,7 +114,7 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
   int thread_id_block = threadIdx.x //thread number in block
 
-    
+
   // CHANGE BELOW LINE TO BE MORE EFFICIENT
   int rounds = entryListSize % total_threads == 0 ? (entryListSize/total_threads):((entryListSize/total_threads)+1);
   g->num_edges = entryListSize;
@@ -116,8 +133,8 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
     g->edges[i].fp = fp;
     g->edges[i].src = bucket1;
     g->edges[i].dst = bucket2;
-    
-    
+
+
 // 	Copy state to local memory for efficiency */
 //     curandState local_state = global_state[thread_id];
 // 	/* Generate pseudo - random unsigned ints
@@ -132,35 +149,35 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
 /**
  * Edge Processing Kernel
  * Finds random edges to evict until capacity for each bucket is equal to 0
- * 
+ *
  */
 __global__ void processEdges(Graph * g, int* anyChange) {
   int total_threads = blockDim.x * gridDim.x; //total threads
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
   int thread_id_block = threadIdx.x //thread number in block
   int num_edges = g->num_edges;
-  
+
   int rounds = num_edges % total_threads == 0 ? (num_edges/total_threads):(num_edges/total_thread)
 
   for(int i=0; i<rounds; i++) {
   	int currIdx = total_threads*i + thread_id; //current edge to process
-    Edge * e = g->edges[currIdx]; 
-    
+    Edge * e = g->edges[currIdx];
+
     //determine the bucket it's in
     int curr_bucket = e.dir == 0 ? e.src:e.dst;
-  	
+
     //check the bucket
     int * bucketCount = &(g->buckets[curr_bucket]);
     int tmp = *bucketCount;
-    
+
     //decrement the bucket count if > 0
     if(*bucketCount > 0) {
       int old = atomicDec(bCount/ INTEGER_MAX_VALUE);
       if (old && old < LARGE_THRESHOLD_VAL) {
-      	e->dir ^ 1; // flip the bit 
+      	e->dir ^ 1; // flip the bit
       }
     }
-  	
+
   }
 }
 
@@ -172,24 +189,24 @@ void initGraphCPU(int entry_size) {
 }
 
 int insert(int* entries, int num_entries, int bucket_size, int num_buckets){
-	int * anychange = new int; 
+	int * anychange = new int;
   	*anychange = 1;
   	int * d_change = cudaMallocAndCpy(sizeof(int), anychange)
-      
+
   	Graph *h_graph = new Graph(num_buckets, bucket_size, entry_size);
-  
+
   	//set up pointer
   	cudaMalloc((void**)&(h_graph->edges), sizeof(Edge)*entry_size);
   	Graph *d_graph = cudaMallocAndCpy(sizeof(Graph), h_graph);
   	char * d_entries = cudaMallocAndCpy(sizeof(int)*num_entries, entries);
-  	
+
   	while (*anychange != 0){
       *anychange = 0;
       cudaSendToGPU(d_change, anychange, sizeof(int));
-      
+
       findAllCollisions<<<2, 512>>>(d_entries, num_entries, d_graph);
       cudaDeviceSynchronize();
-      
+
       processEdges<<<ceil(num_entries/1024), 1024>>>(d_graph, d_change);
       cudaDeviceSynchronize();
 
