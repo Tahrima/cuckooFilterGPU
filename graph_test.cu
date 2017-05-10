@@ -21,7 +21,7 @@
 #include "hash/hash_functions.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
-#define NUM_BUCKETS 100
+#define NUM_BUCKETS 5
 
 __device__ __host__ unsigned int FNVhashGPU(unsigned int value, unsigned int tableSize){
     unsigned char p[4];
@@ -65,9 +65,9 @@ void cudaSendToGPU(void * destination, void * hostMemory, int size) {
 
 class Edge {
   public:
-    int src; //hash(x) location
-    int dst; //hash(x) xor hash(fp) location
-    int fp; //fingerprint
+    unsigned int src; //hash(x) location
+    unsigned int dst; //hash(x) xor hash(fp) location
+    unsigned char fp; //fingerprint
     int dir; //0 to be src, 1 to be dst
 
  	__device__ __host__ Edge(){}
@@ -77,14 +77,23 @@ class Graph {
   public:
     int buckets[NUM_BUCKETS]; //value at index i is the number of indegrees to a bucket i
   	Edge *edges;
-  	int num_edges;
+  	unsigned int num_edges;
 
-    __device__ __host__ Graph(int max_bucket_size, int size) {
+    __device__ __host__ Graph(unsigned int max_bucket_size, unsigned int size) {
       num_edges = size;
       for(int i=0; i<NUM_BUCKETS; i++){
         buckets[i] = -max_bucket_size;
       }
       edges = NULL;
+    }
+
+    __device__ void printGraph() {
+      int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
+      if(thread_id == 0) {
+        for(int i=0; i<num_edges; i++) {
+          printf("Edge %u: %d \t src: %u \t dst: %u\n",i, edges[i].fp, edges[i].src, edges[i].dst);
+        }
+      }
     }
 };
 
@@ -118,27 +127,25 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
     int currIdx = rounds*total_threads + thread_id;
     int * entry = &entries[currIdx];
 
-    //calculate edge properties
-    #warning fix these to be real
     unsigned int bucket1;
     hash_item((unsigned char*) entry,
                   4,
                   NUM_BUCKETS,
-    		      HASHFUN_MD5,
+    		      HASHFUN_NORM,
                   &bucket1);
-    unsigned fp = FNVhashGPU(*entry, (unsigned int) 256);
+    unsigned char fp = FNVhashGPU(*entry, (unsigned int) 256);
     unsigned int fpHash;
     hash_item((unsigned char*) &fp,
-                  4,
+                  1,
                   NUM_BUCKETS,
-    		      HASHFUN_MD5,
+    		      HASHFUN_NORM,
                   &fpHash);
-    unsigned bucket2 = bucket1 ^ fpHash;
+    unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
 
     //build edge
-    g->edges[i].fp = fp;
-    g->edges[i].src = bucket1;
-    g->edges[i].dst = bucket2;
+    g->edges[currIdx].fp = fp;
+    g->edges[currIdx].src = bucket1 % NUM_BUCKETS;
+    g->edges[currIdx].dst = bucket2 % NUM_BUCKETS;
 
 
 // 	Copy state to local memory for efficiency */
@@ -149,7 +156,8 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
     //update bucket
     atomicAdd(&(g->buckets[bucket1]), 1);
   }
-
+  syncthreads();
+  g->printGraph();
 }
 
 /**
@@ -178,9 +186,11 @@ __global__ void processEdges(Graph * g, int* anyChange) {
 
     //decrement the bucket count if > 0
     if(*bucketCount > 0) {
+      printf("flipping direction\n");
       int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
       if (old && old < LARGE_THRESHOLD_VAL) {
       	e->dir = e->dir ^ 1; // flip the bit
+        *anyChange = 1;
       }
     }
 
@@ -194,7 +204,8 @@ void initGraphCPU(int entry_size) {
     cudaMalloc(&e, sizeof(Edge)*entry_size);
 }
 
-int insert(int* entries, int num_entries, int bucket_size, int num_buckets){
+int insert(int* entries, unsigned int num_entries, unsigned int bucket_size, int num_buckets){
+  std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
 
@@ -206,16 +217,20 @@ int insert(int* entries, int num_entries, int bucket_size, int num_buckets){
   	int * d_entries = (int *) cudaMallocAndCpy(sizeof(int)*num_entries, entries);
 
   	while (anychange != 0){
+      std::cout << "Calling kernel" << std::endl;
       anychange = 0;
       cudaSendToGPU(d_change, &anychange, sizeof(int));
 
       findAllCollisions<<<2, 512>>>(d_entries, num_entries, d_graph);
       cudaDeviceSynchronize();
+      std::cout << "Found all collisions" << std::endl;
 
       processEdges<<<ceil(num_entries/1024), 1024>>>(d_graph, d_change);
       cudaDeviceSynchronize();
+      std::cout << "Proccessed edge" << std::endl;
 
       cudaGetFromGPU(&anychange, d_change, sizeof(int));
+      std::cout << "Got value of anychange: " << anychange << std::endl;
 
     }
 }

@@ -4,8 +4,8 @@
 #include <assert.h>
 #include <cuda_profiler_api.h>
 
-#include "../mt19937ar.h"
-#include "quotientFilter.cuh"
+#include "mt19937ar.h"
+#include "graph_test.cu"
 
 #ifndef NOT_FOUND
 #define NOT_FOUND UINT_MAX
@@ -33,11 +33,11 @@ void CUDAErrorCheck()
 
 int main(int argc, char* argv[])
 {
-    assert(argc == 5);
-    int q = atoi(argv[1]);
-    int r = atoi(argv[2]);
-    float alpha = atof(argv[3]);    //initial fill %
-    int batchSize = atoi(argv[4]);  //size of batch to insert after build
+    // assert(argc == 5);
+    // int q = atoi(argv[1]);
+    // int r = atoi(argv[2]);
+    // float alpha = atof(argv[3]);    //initial fill %
+    // int batchSize = atoi(argv[4]);  //size of batch to insert after build
 
     //TODO: Initialize filter
     /*struct quotient_filter d_qfilter;
@@ -45,15 +45,18 @@ int main(int argc, char* argv[])
     cudaMemset(d_qfilter.table, 0, calcNumSlotsGPU(q, r) * sizeof(unsigned char));
     */
     //Generate set of random numbers
-    int numValues = alpha * (1 << q);
-    unsigned int* h_randomValues = new unsigned int[numValues];
-    generateRandomNumbers(h_randomValues, numValues);
-    unsigned int* d_randomValues;
-    cudaMalloc((void**) &d_randomValues, numValues * sizeof(unsigned int));
-    cudaMemcpy(d_randomValues, h_randomValues, numValues * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    unsigned int numValues = 5;
+    int* h_randomValues = new int[numValues];
+    // generateRandomNumbers((unsigned int *)h_randomValues, numValues);
 
+
+    for (size_t i = 0; i < numValues; i++) {
+      h_randomValues[i] = i;
+      std::cout <<"Number " << i << ": " <<h_randomValues[i] << std::endl;
+    }
+    // return;
 //Random Inserts
-    float filterBuildTime = insert(d_randomValues, numValues, d_randomValues, &d_qfilter.cardinality);
+    insert(h_randomValues, numValues, 4, 100);
 //    printf("Insert rate = %f million ops/sec\n", numValues / filterBuildTime / 1000);
 
 
@@ -61,7 +64,7 @@ int main(int argc, char* argv[])
 
     //Free Memory
     delete[] h_randomValues;
-    cudaFree(d_randomValues);
+    CUDAErrorCheck();
     cudaDeviceReset();
 
     return 0;
