@@ -109,7 +109,7 @@ class Graph {
       if(thread_id == 0) {
         printf("\n\nBuckets\n");
         for(int i=0; i<NUM_BUCKETS; i++) {
-          if(buckets[i] > 0) {
+          if(buckets[i] > MAX_BUCKET_SIZE) {
             printf("Collisions for bucket %d: %d\n", i, buckets[i]);
           }
         }
@@ -240,15 +240,20 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
       int * bucketCount = &(g->buckets[curr_bucket]);
       int tmp = *bucketCount;
       //decrement the bucket count if > 0
-      cudaDeviceSynchronize();
       //int rand;
       //random((unsigned int)clock() + thread_id, &rand, 50);
-      if(*bucketCount > BUCKET_SIZE) {
+      syncthreads();
+      if(*bucketCount > MAX_BUCKET_SIZE) {
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
         int shift = randNum % tmp;
         int shiftedValue = old - shift;
         int bucketOffset = (shiftedValue < 0) ? abs(shiftedValue) + tmp : bucketOffset;
-        if (bucketOffset > BUCKET_SIZE) {
+        if (bucketOffset > MAX_BUCKET_SIZE && old < LARGE_THRESHOLD_VAL) {
+          if (e->dir) {
+            printf("Evicting %d from %d to %d\n",e->fp, e->dst, e->src);
+          } else {
+            printf("Evicting %d from %d to %d\n",e->fp, e->src, e->dst);
+          }
         	e->dir = e->dir ^ 1; // flip the bit
           *anyChange = 1;
         }
@@ -257,7 +262,7 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
   }
 
   __syncthreads();
-  g->printGraph();
+  g->printCollisions();
 }
 
 void initGraphCPU(int entry_size) {
@@ -287,9 +292,10 @@ void insert(int* entries, unsigned int num_entries){
       anychange = 0;
       cudaSendToGPU(d_change, &anychange, sizeof(int));
 
-      std::cout << "Found all collisions" << std::endl;
       // generate random number
-      unsigned int randNum = arc4random_uniform(NUM_BUCKETS * 8);
+
+      unsigned int randNum = rand() % (NUM_BUCKETS * 8);
+      std::cout << "Found all collisions, rand num: "<< randNum << std::endl;
       processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum);
       cudaDeviceSynchronize();
       std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
