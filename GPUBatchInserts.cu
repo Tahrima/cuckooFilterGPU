@@ -39,11 +39,11 @@ int main(int argc, char* argv[])
     float alpha = atof(argv[3]);    //initial fill %
     int batchSize = atoi(argv[4]);  //size of batch to insert after build
 
-    //Initialize filter
-    struct quotient_filter d_qfilter;
+    //TODO: Initialize filter
+    /*struct quotient_filter d_qfilter;
     initFilterGPU(&d_qfilter, q, r);
     cudaMemset(d_qfilter.table, 0, calcNumSlotsGPU(q, r) * sizeof(unsigned char));
-    
+    */
     //Generate set of random numbers
     int numValues = alpha * (1 << q);
     unsigned int* h_randomValues = new unsigned int[numValues];
@@ -53,24 +53,15 @@ int main(int argc, char* argv[])
     cudaMemcpy(d_randomValues, h_randomValues, numValues * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
 //Random Inserts
-    float filterBuildTime = insert(d_qfilter, numValues, d_randomValues, &d_qfilter.cardinality);
+    float filterBuildTime = insert(d_randomValues, numValues, d_randomValues, &d_qfilter.cardinality);
 //    printf("Insert rate = %f million ops/sec\n", numValues / filterBuildTime / 1000);
 
-//Insert new batch
-    unsigned int* h_newBatch = new unsigned int[batchSize];
-    generateRandomNumbers(h_newBatch, batchSize);
-    unsigned int* d_newBatch;
-    cudaMalloc((void**) &d_newBatch, batchSize * sizeof(unsigned int));
-    cudaMemcpy(d_newBatch, h_newBatch, batchSize * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    float insertTime = insert(d_qfilter, batchSize, d_newBatch, &d_qfilter.cardinality);
-    printf("%f\n", batchSize / insertTime / 1000);
+
+//TODO: Insert new batch
 
     //Free Memory
-    cudaFree(d_qfilter.table);
     delete[] h_randomValues;
     cudaFree(d_randomValues);
-    delete[] h_newBatch;
-    cudaFree(d_newBatch);
     cudaDeviceReset();
 
     return 0;

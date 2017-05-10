@@ -33,7 +33,7 @@ void hash_Normal(unsigned char* inputBuffer,
                 unsigned int maxIndex,
 		            unsigned int* result) {
 
-	firstHash = Normal_APHash(inputBuffer, bufferSize);
+	unsigned int firstHash = Normal_APHash(inputBuffer, bufferSize);
 	*result = firstHash % maxIndex;
 }
 
@@ -52,14 +52,13 @@ __device__
 void hash_MD5(unsigned char* inputBuffer,
                       unsigned int bufferSize,
                       unsigned int maxIndex,
-                      int numOfHashes,
 		                  unsigned int* result) {
 
 	unsigned int md5Hash[HASHSIZE_MD5];
 	md5(inputBuffer, bufferSize, (unsigned char*) md5Hash);
 	*result = md5Hash[0] % maxIndex;
 }
-q
+
 __device__
 int hash_item(unsigned char* inputBuffer,
               unsigned int bufferSize,
