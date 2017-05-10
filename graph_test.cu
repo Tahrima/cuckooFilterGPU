@@ -45,13 +45,6 @@ void openFileToAccess( T_file& input_file, std::string file_name ) {
 		throw std::runtime_error( "Failed to open specified file: " + file_name + "\n" );
 }
 
-int * randomNumbers(int size) {
-  int * arr = new int[size];
-  for(int i=0; i<size; i++) {
-  	arr[i] = arc4random_uniform(1000000);
-  }
-  return arr;
-}
 void * cudaMallocAndCpy(int size, void * hostMemory) {
   void * gpuMem;
   cudaMalloc((void**) &gpuMem, size);
