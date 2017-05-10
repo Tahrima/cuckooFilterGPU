@@ -23,10 +23,12 @@
 #define LARGE_THRESHOLD_VAL 10000
 #define NUM_BUCKETS 5
 
-__device__ uint64_t TwoIndependentMultiplyShift(uint64_t key) {
+__device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
+    int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
     const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
-    const uint64_t m = SEED[0];
-    const uint64_t a = SEED[2];
+    const unsigned int m = *reinterpret_cast<const unsigned int *>(&SEED[(thread_id %2)+2]);
+    const unsigned int a = *reinterpret_cast<const unsigned int *>(&SEED[thread_id % 2]);
+    printf("thread: %d \t key: %u, m: %u, a: %u = %lu\n",thread_id, key, m, a, (a + m * key));
     return (a + m * key);
 }
 
@@ -136,6 +138,8 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
       unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
 
       //build edge
+     printf("Thread id %d : %d \n", thread_id, *entry);
+
       g->edges[currIdx].fp = fp;
       g->edges[currIdx].src = bucket1 % NUM_BUCKETS;
       g->edges[currIdx].dst = bucket2 % NUM_BUCKETS;
@@ -209,6 +213,11 @@ void insert(int* entries, unsigned int num_entries, unsigned int bucket_size, in
   	cudaMalloc((void**)&(h_graph->edges), sizeof(Edge)*num_entries);
   	Graph *d_graph = (Graph *) cudaMallocAndCpy(sizeof(Graph), h_graph);
   	int * d_entries = (int *) cudaMallocAndCpy(sizeof(int)*num_entries, entries);
+
+
+    for (int i = 0; i < num_entries; i++){
+        std::cout << "INSERT  " << i <<": " << (unsigned int) entries[i] << std::endl;
+    }
 
   	while (anychange != 0){
       std::cout << "Calling kernel" << std::endl;
