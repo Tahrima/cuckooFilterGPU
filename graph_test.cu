@@ -75,7 +75,7 @@ class Edge {
 class Graph {
   public:
     int buckets[NUM_BUCKETS]; //value at index i is the number of indegrees to a bucket i
-  	Edge * edges;
+  	Edge *edges;
   	int num_edges;
 
     __device__ __host__ Graph(int max_bucket_size, int size) {
@@ -120,14 +120,14 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
     //calculate edge properties
     #warning fix these to be real
     unsigned int bucket1;
-    hash_item((char*) entry,
+    hash_item((unsigned char*) entry,
                   4,
                   NUM_BUCKETS,
     		      HASHFUN_MD5,
                   &bucket1);
     unsigned fp = FNVhashGPU(entry, 256);
     unsigned int fpHash;
-    hash_item((char*) &fp,
+    hash_item((unsigned char*) &fp,
                   4,
                   NUM_BUCKETS,
     		      HASHFUN_MD5,
