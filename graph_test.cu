@@ -17,6 +17,7 @@
 #include <fstream>
 #include <curand.h>
 #include <curand_kernel.h>
+#include "hash_functions.cuh"
 
 #define LARGE_THRESHOLD_VAL 10000
 #define NUM_BUCKETS 100
