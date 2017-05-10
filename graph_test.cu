@@ -28,7 +28,7 @@ __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
     const unsigned int m = *reinterpret_cast<const unsigned int *>(&SEED[(thread_id %2)+2]);
     const unsigned int a = *reinterpret_cast<const unsigned int *>(&SEED[thread_id % 2]);
-    printf("thread: %d \t key: %u, m: %u, a: %u = %lu\n",thread_id, key, m, a, (a + m * key));
+    //printf("thread: %d \t key: %u, m: %u, a: %u = %lu\n",thread_id, key, m, a, (a + m * key));
     return (a + m * key);
 }
 
@@ -117,9 +117,11 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
   g->num_edges = entryListSize;
 
   for (size_t i = 0; i <rounds; i++) {
-    int currIdx = rounds*total_threads + thread_id;
-    int * entry = &entries[currIdx];
-    if(thread_id < entryListSize) {
+    int currIdx = i*total_threads + thread_id;
+    if(currIdx < entryListSize) {
+      int * entry = &entries[currIdx];
+
+      //printf("KERNEL SPACE current Index %d, Thread id %d: %x\n", currIdx, thread_id, entry);
       unsigned int bucket1;
       hash_item((unsigned char*) entry,
                     4,
@@ -138,7 +140,6 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
       unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
 
       //build edge
-     printf("Thread id %d : %d \n", thread_id, *entry);
 
       g->edges[currIdx].fp = fp;
       g->edges[currIdx].src = bucket1 % NUM_BUCKETS;
@@ -213,11 +214,6 @@ void insert(int* entries, unsigned int num_entries, unsigned int bucket_size, in
   	cudaMalloc((void**)&(h_graph->edges), sizeof(Edge)*num_entries);
   	Graph *d_graph = (Graph *) cudaMallocAndCpy(sizeof(Graph), h_graph);
   	int * d_entries = (int *) cudaMallocAndCpy(sizeof(int)*num_entries, entries);
-
-
-    for (int i = 0; i < num_entries; i++){
-        std::cout << "INSERT  " << i <<": " << (unsigned int) entries[i] << std::endl;
-    }
 
   	while (anychange != 0){
       std::cout << "Calling kernel" << std::endl;
