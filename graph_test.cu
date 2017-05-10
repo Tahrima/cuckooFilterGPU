@@ -22,7 +22,7 @@
 
 #define LARGE_THRESHOLD_VAL 10000
 #define NUM_BUCKETS 100
-
+#define MAX_BUCKET_SIZE 4
 __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
     const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
@@ -84,10 +84,8 @@ class Graph {
     int buckets[NUM_BUCKETS]; //value at index i is the number of indegrees to a bucket i
   	Edge *edges;
   	unsigned int num_edges;
-    unsigned int max_bucket_size;
-    __device__ __host__ Graph(unsigned int max_bucket_size, unsigned int size) {
+    __device__ __host__ Graph(unsigned int size) {
       num_edges = size;
-      this->max_bucket_size = max_bucket_size;
       for(int i=0; i<NUM_BUCKETS; i++){
         buckets[i] = 0;
       }
@@ -265,12 +263,12 @@ void initGraphCPU(int entry_size) {
     cudaMalloc(&e, sizeof(Edge)*entry_size);
 }
 
-void insert(int* entries, unsigned int num_entries, unsigned int bucket_size, int num_buckets){
+void insert(int* entries, unsigned int num_entries){
   std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
 
-  	Graph *h_graph = new Graph(bucket_size, num_entries);
+  	Graph *h_graph = new Graph(num_entries);
 
   	//set up pointer
   	cudaMalloc((void**)&(h_graph->edges), sizeof(Edge)*num_entries);

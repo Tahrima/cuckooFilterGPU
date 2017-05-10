@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
     // }
     // return;
 //Random Inserts
-    insert(h_randomValues, numValues, 4, 100);
+    insert(h_randomValues, numValues);
 //    printf("Insert rate = %f million ops/sec\n", numValues / filterBuildTime / 1000);
 
 
