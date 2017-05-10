@@ -17,12 +17,12 @@
 #include <fstream>
 #include <curand.h>
 #include <curand_kernel.h>
+#include "hash/hash_functions.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
 #define NUM_BUCKETS 100
 
-__device__ __host__ unsigned int FNVhashGPU(unsigned int value, unsigned int tableSize)
-{
+__device__ __host__ unsigned int FNVhashGPU(unsigned int value, unsigned int tableSize){
     unsigned char p[4];
     p[0] = (value >> 24) & 0xFF;
     p[1] = (value >> 16) & 0xFF;
@@ -57,24 +57,9 @@ void * cudaMallocAndCpy(int size, void * hostMemory) {
 void cudaGetFromGPU(void * destination, void * gpuMemory, int size) {
   cudaMemcpy(destination, gpuMemory, size, cudaMemcpyDeviceToHost);
 }
+
 void cudaSendToGPU(void * destination, void * hostMemory, int size) {
   cudaMemcpy(destination, hostMemory, size, cudaMemcpyHostToDevice);
-}
-
-class Graph {
-  public:
-    int buckets[num_buckets]; //value at index i is the number of indegrees to a bucket i
-  	Edge * edges;
-  	int num_edges;
-
-    __device__ __host__ Graph(int num_buckets, int max_bucket_size, int size) {
-      num_edges = size;
-      for(int i=0; i<num_buckets; i++){
-        buckets[i] = -max_bucket_size;
-      }
-      edges = null;
-    }
-
 }
 
 class Edge {
@@ -85,7 +70,22 @@ class Edge {
     int dir; //0 to be src, 1 to be dst
 
  	__device__ __host__ Edge(){}
-}
+};
+
+class Graph {
+  public:
+    int buckets[NUM_BUCKETS]; //value at index i is the number of indegrees to a bucket i
+  	Edge * edges;
+  	int num_edges;
+
+    __device__ __host__ Graph(int max_bucket_size, int size) {
+      num_edges = size;
+      for(int i=0; i<NUM_BUCKETS; i++){
+        buckets[i] = -max_bucket_size;
+      }
+      edges = NULL;
+    }
+};
 
 // __global__ void setup_kernel (curandState * state, Graph *g)
 // {
@@ -106,7 +106,7 @@ class Edge {
 __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
   int total_threads = blockDim.x * gridDim.x; //total threads
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
-  int thread_id_block = threadIdx.x //thread number in block
+  int thread_id_block = threadIdx.x; //thread number in block
 
 
   // CHANGE BELOW LINE TO BE MORE EFFICIENT
@@ -122,15 +122,15 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
     unsigned int bucket1;
     hash_item((char*) entry,
                   4,
-                  NUM_BUCKETS
-    		          HASHFUN_MD5,
+                  NUM_BUCKETS,
+    		      HASHFUN_MD5,
                   &bucket1);
     unsigned fp = FNVhashGPU(entry, 256);
     unsigned int fpHash;
     hash_item((char*) &fp,
                   4,
-                  NUM_BUCKETS
-    		          HASHFUN_MD5,
+                  NUM_BUCKETS,
+    		      HASHFUN_MD5,
                   &fpHash);
     unsigned bucket2 = bucket1 ^ fpHash;
 
@@ -198,7 +198,7 @@ int insert(int* entries, int num_entries, int bucket_size, int num_buckets){
   	*anychange = 1;
   	int * d_change = cudaMallocAndCpy(sizeof(int), anychange)
 
-  	Graph *h_graph = new Graph(num_buckets, bucket_size, entry_size);
+  	Graph *h_graph = new Graph(bucket_size, entry_size);
 
   	//set up pointer
   	cudaMalloc((void**)&(h_graph->edges), sizeof(Edge)*entry_size);
