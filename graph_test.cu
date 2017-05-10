@@ -18,6 +18,7 @@
 #include <climits>
 #include <curand.h>
 #include <curand_kernel.h>
+#include <math.h>
 #include "hash/hash_functions.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
@@ -219,7 +220,7 @@ __global__ void resetCollisions(Graph * g) {
  * Finds random edges to evict until capacity for each bucket is equal to 0
  *
  */
-__global__ void processEdges(Graph * g, int* anyChange) {
+__global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
   int total_threads = blockDim.x * gridDim.x; //total threads
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
   int thread_id_block = threadIdx.x; //thread number in block
@@ -239,12 +240,15 @@ __global__ void processEdges(Graph * g, int* anyChange) {
       int * bucketCount = &(g->buckets[curr_bucket]);
       int tmp = *bucketCount;
       //decrement the bucket count if > 0
-
-      int rand;
-      random((unsigned int)clock() + thread_id, &rand, 50);
-      if(*bucketCount > 0) {
+      cudaDeviceSynchronize();
+      //int rand;
+      //random((unsigned int)clock() + thread_id, &rand, 50);
+      if(*bucketCount > BUCKET_SIZE) {
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
-        if (old && old < LARGE_THRESHOLD_VAL) {
+        int shift = randNum % tmp;
+        int shiftedValue = old - shift;
+        int bucketOffset = (shiftedValue < 0) ? abs(shiftedValue) + tmp : bucketOffset;
+        if (bucketOffset > BUCKET_SIZE) {
         	e->dir = e->dir ^ 1; // flip the bit
           *anyChange = 1;
         }
@@ -284,8 +288,9 @@ void insert(int* entries, unsigned int num_entries){
       cudaSendToGPU(d_change, &anychange, sizeof(int));
 
       std::cout << "Found all collisions" << std::endl;
-
-      processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change);
+      // generate random number
+      unsigned int randNum = arc4random_uniform(NUM_BUCKETS * 8);
+      processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum);
       cudaDeviceSynchronize();
       std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
 
