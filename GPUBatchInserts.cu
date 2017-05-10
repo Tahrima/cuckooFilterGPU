@@ -45,15 +45,15 @@ int main(int argc, char* argv[])
     cudaMemset(d_qfilter.table, 0, calcNumSlotsGPU(q, r) * sizeof(unsigned char));
     */
     //Generate set of random numbers
-    unsigned int numValues = 5;
+    unsigned int numValues = 100;
     int* h_randomValues = new int[numValues];
-    // generateRandomNumbers((unsigned int *)h_randomValues, numValues);
+    generateRandomNumbers((unsigned int *)h_randomValues, numValues);
 
 
-    for (size_t i = 0; i < numValues; i++) {
-      h_randomValues[i] = i;
-      std::cout <<"Number " << i << ": " <<h_randomValues[i] << std::endl;
-    }
+    // for (size_t i = 0; i < numValues; i++) {
+    //   h_randomValues[i] = i;
+    //   std::cout <<"Number " << i << ": " <<h_randomValues[i] << std::endl;
+    // }
     // return;
 //Random Inserts
     insert(h_randomValues, numValues, 4, 100);

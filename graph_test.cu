@@ -23,20 +23,11 @@
 #define LARGE_THRESHOLD_VAL 10000
 #define NUM_BUCKETS 5
 
-__device__ __host__ unsigned int FNVhashGPU(unsigned int value, unsigned int tableSize){
-    unsigned char p[4];
-    p[0] = (value >> 24) & 0xFF;
-    p[1] = (value >> 16) & 0xFF;
-    p[2] = (value >> 8) & 0xFF;
-    p[3] = value & 0xFF;
-
-    unsigned int h = 2166136261;
-
-    for (int i = 0; i < 4; i++){
-        h = (h * 16777619) ^ p[i];
-    }
-
-    return h % tableSize;
+__device__ uint64_t TwoIndependentMultiplyShift(uint64_t key) {
+    const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
+    const uint64_t m = SEED[0];
+    const uint64_t a = SEED[2];
+    return (a + m * key) >> 56;
 }
 
 template <typename T_file>
@@ -133,7 +124,10 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
                   NUM_BUCKETS,
     		      HASHFUN_NORM,
                   &bucket1);
-    unsigned char fp = FNVhashGPU(*entry, (unsigned int) 256);
+
+    const uint64_t hash = TwoIndependentMultiplyShift(*entry);
+
+    unsigned char fp = (unsigned char) hash;
     unsigned int fpHash;
     hash_item((unsigned char*) &fp,
                   1,
@@ -204,7 +198,7 @@ void initGraphCPU(int entry_size) {
     cudaMalloc(&e, sizeof(Edge)*entry_size);
 }
 
-int insert(int* entries, unsigned int num_entries, unsigned int bucket_size, int num_buckets){
+void insert(int* entries, unsigned int num_entries, unsigned int bucket_size, int num_buckets){
   std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
