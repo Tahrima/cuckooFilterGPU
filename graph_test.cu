@@ -21,17 +21,30 @@
 #include "hash/hash_functions.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
-#define NUM_BUCKETS 5
+#define NUM_BUCKETS 100
 
 __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
     const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
-    const unsigned int m = *reinterpret_cast<const unsigned int *>(&SEED[(thread_id %2)+2]);
-    const unsigned int a = *reinterpret_cast<const unsigned int *>(&SEED[thread_id % 2]);
+    const uint64_t m = SEED[(thread_id %2)+2];
+    const uint64_t a = SEED[thread_id % 2];
     //printf("thread: %d \t key: %u, m: %u, a: %u = %lu\n",thread_id, key, m, a, (a + m * key));
     return (a + m * key);
 }
+__device__ void random(unsigned int seed, int* result, int max) {
+  /* CUDA's random number library uses curandState_t to keep track of the seed value
+     we will store a random state for every thread  */
+  curandState_t state;
 
+  /* we have to initialize the state */
+  curand_init(seed, /* the seed controls the sequence of random values that are produced */
+              0, /* the sequence number is only important with multiple cores */
+              0, /* the offset is how much extra we advance in the sequence for each call, can be 0 */
+              &state);
+
+  /* curand works like rand - except that it takes a state as a parameter */
+  *result = curand(&state) % max;
+}
 template <typename T_file>
 void openFileToAccess( T_file& input_file, std::string file_name ) {
 	input_file.open( file_name.c_str() );
@@ -71,9 +84,10 @@ class Graph {
     int buckets[NUM_BUCKETS]; //value at index i is the number of indegrees to a bucket i
   	Edge *edges;
   	unsigned int num_edges;
-
+    unsigned int max_bucket_size;
     __device__ __host__ Graph(unsigned int max_bucket_size, unsigned int size) {
       num_edges = size;
+      this->max_bucket_size = max_bucket_size;
       for(int i=0; i<NUM_BUCKETS; i++){
         buckets[i] = -max_bucket_size;
       }
@@ -85,6 +99,20 @@ class Graph {
       if(thread_id == 0) {
         for(int i=0; i<num_edges; i++) {
           printf("Edge %d: %u \t src: %u \t dst: %u\n",i, edges[i].fp, edges[i].src, edges[i].dst);
+        }
+        printCollisions();
+
+      }
+    }
+
+    __device__ void printCollisions() {
+      int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
+      if(thread_id == 0) {
+        printf("\n\nBuckets\n");
+        for(int i=0; i<NUM_BUCKETS; i++) {
+          if(buckets[i] > 0) {
+            printf("Collisions for bucket %d: %d\n", i, buckets[i]);
+          }
         }
       }
     }
@@ -110,7 +138,6 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
   int total_threads = blockDim.x * gridDim.x; //total threads
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
   int thread_id_block = threadIdx.x; //thread number in block
-
 
   // CHANGE BELOW LINE TO BE MORE EFFICIENT
   int rounds = entryListSize % total_threads == 0 ? (entryListSize/total_threads):((entryListSize/total_threads)+1);
@@ -156,7 +183,37 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
     }
   }
   syncthreads();
-  g->printGraph();
+}
+__global__ void resetCollisions(Graph * g) {
+
+
+  g->printCollisions();
+  int total_threads = blockDim.x * gridDim.x; //total threads
+  int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
+  int thread_id_block = threadIdx.x; //thread number in block
+
+  int rounds = (NUM_BUCKETS % total_threads == 0) ? (NUM_BUCKETS/total_threads):(NUM_BUCKETS/total_threads + 1);
+
+  for (size_t iter = 0; iter < rounds; iter++) {
+    int currIdx = iter*total_threads + thread_id;
+    if(currIdx < NUM_BUCKETS) {
+      int * currBucket = &(g->buckets[currIdx]);
+      *currBucket = -g->max_bucket_size;
+    }
+
+  }
+
+  rounds = (g->num_edges % total_threads == 0) ? (g->num_edges/total_threads):(g->num_edges/total_threads + 1);
+
+  for (size_t iter = 0; iter < rounds; iter++) {
+    int currIdx = iter*total_threads + thread_id;
+
+    if(currIdx < g->num_edges) {
+      int b = (g->edges[currIdx].dir == 0) ? (g->edges[currIdx].src):(g->edges[currIdx].dst);
+      atomicAdd(&(g->buckets[b]),1);
+    }
+  }
+  g->printCollisions();
 }
 
 /**
@@ -170,29 +227,32 @@ __global__ void processEdges(Graph * g, int* anyChange) {
   int thread_id_block = threadIdx.x; //thread number in block
   int num_edges = g->num_edges;
 
-  int rounds = num_edges % total_threads == 0 ? (num_edges/total_threads):(num_edges/total_threads);
+  int rounds = num_edges % total_threads == 0 ? (num_edges/total_threads):(num_edges/total_threads+1);
 
   for(int i=0; i<rounds; i++) {
   	int currIdx = total_threads*i + thread_id; //current edge to process
-    Edge *e = &g->edges[currIdx];
+    if(currIdx < g->num_edges) {
+      Edge *e = &g->edges[currIdx];
 
-    //determine the bucket it's in
-    int curr_bucket = e->dir == 0 ? e->src:e->dst;
+      //determine the bucket it's in
+      int curr_bucket = e->dir == 0 ? e->src:e->dst;
 
-    //check the bucket
-    int * bucketCount = &(g->buckets[curr_bucket]);
-    int tmp = *bucketCount;
+      //check the bucket
+      int * bucketCount = &(g->buckets[curr_bucket]);
+      int tmp = *bucketCount;
+      //decrement the bucket count if > 0
 
-    //decrement the bucket count if > 0
-    if(*bucketCount > 0) {
-      printf("flipping direction\n");
-      int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
-      if (old && old < LARGE_THRESHOLD_VAL) {
-      	e->dir = e->dir ^ 1; // flip the bit
-        *anyChange = 1;
+      int rand;
+      random((unsigned int)clock() + thread_id, &rand, 50);
+      if(*bucketCount > 0 && (rand % 2)) {
+        int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
+        if (old && old < LARGE_THRESHOLD_VAL) {
+        	e->dir = e->dir ^ 1; // flip the bit
+          int new_bucket = e->dir != 0 ? e->src:e->dst;
+          *anyChange = 1;
+        }
       }
     }
-
   }
 }
 
@@ -215,21 +275,27 @@ void insert(int* entries, unsigned int num_entries, unsigned int bucket_size, in
   	Graph *d_graph = (Graph *) cudaMallocAndCpy(sizeof(Graph), h_graph);
   	int * d_entries = (int *) cudaMallocAndCpy(sizeof(int)*num_entries, entries);
 
+    std::cout << "Calling kernel" << std::endl;
+    findAllCollisions<<<2, 512>>>(d_entries, num_entries, d_graph);
+    cudaDeviceSynchronize();
+    int count = 0;
   	while (anychange != 0){
-      std::cout << "Calling kernel" << std::endl;
       anychange = 0;
       cudaSendToGPU(d_change, &anychange, sizeof(int));
 
-      findAllCollisions<<<2, 512>>>(d_entries, num_entries, d_graph);
-      cudaDeviceSynchronize();
       std::cout << "Found all collisions" << std::endl;
 
-      processEdges<<<ceil(num_entries/1024), 1024>>>(d_graph, d_change);
+      processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change);
       cudaDeviceSynchronize();
-      std::cout << "Proccessed edge" << std::endl;
+      std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
 
       cudaGetFromGPU(&anychange, d_change, sizeof(int));
       std::cout << "Got value of anychange: " << anychange << std::endl;
-
+      if(anychange == 1){
+        resetCollisions<<<ceil((double)num_entries/1024), 1024>>>(d_graph);
+      }
+      cudaDeviceSynchronize();
+      count++;
     }
+    printf("Count: %d\n",count);
 }

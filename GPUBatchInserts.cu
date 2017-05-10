@@ -16,7 +16,7 @@ void generateRandomNumbers(unsigned int *numberArray, unsigned int n)
     init_genrand(time(NULL));   //initialize random number generator
     for (int i = 0; i < n; i++){
         numberArray[i] = genrand_int32();
-        std::cout << "entry " << i <<": " << numberArray[i] << std::endl;
+        // std::cout << "entry " << i <<": " << numberArray[i] << std::endl;
     }
 }
 
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
     cudaMemset(d_qfilter.table, 0, calcNumSlotsGPU(q, r) * sizeof(unsigned char));
     */
     //Generate set of random numbers
-    unsigned int numValues = 100;
+    unsigned int numValues = atoi(argv[1]);
     int* h_randomValues = new int[numValues];
     generateRandomNumbers((unsigned int *)h_randomValues, numValues);
 
