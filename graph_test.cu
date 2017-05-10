@@ -27,7 +27,7 @@ __device__ uint64_t TwoIndependentMultiplyShift(uint64_t key) {
     const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
     const uint64_t m = SEED[0];
     const uint64_t a = SEED[2];
-    return (a + m * key) >> 56;
+    return (a + m * key);
 }
 
 template <typename T_file>
@@ -82,7 +82,7 @@ class Graph {
       int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
       if(thread_id == 0) {
         for(int i=0; i<num_edges; i++) {
-          printf("Edge %u: %d \t src: %u \t dst: %u\n",i, edges[i].fp, edges[i].src, edges[i].dst);
+          printf("Edge %d: %u \t src: %u \t dst: %u\n",i, edges[i].fp, edges[i].src, edges[i].dst);
         }
       }
     }
@@ -102,7 +102,7 @@ class Graph {
  * Parallel graph building
  * @param entries is a list of entries to enter
  * @param entryListSize is the size of the @param entries list
- * @param g is an address in the GPU to place result. Assumes g->edges has been given enough space for @param entryListSize items
+ * @param g is an address in the GPU to pla\ce result. Assumes g->edges has been given enough space for @param entryListSize items
  */
 __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
   int total_threads = blockDim.x * gridDim.x; //total threads
@@ -117,38 +117,38 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
   for (size_t i = 0; i <rounds; i++) {
     int currIdx = rounds*total_threads + thread_id;
     int * entry = &entries[currIdx];
+    if(thread_id < entryListSize) {
+      unsigned int bucket1;
+      hash_item((unsigned char*) entry,
+                    4,
+                    NUM_BUCKETS,
+      		      HASHFUN_NORM,
+                    &bucket1);
 
-    unsigned int bucket1;
-    hash_item((unsigned char*) entry,
-                  4,
-                  NUM_BUCKETS,
-    		      HASHFUN_NORM,
-                  &bucket1);
+      const uint64_t hash = TwoIndependentMultiplyShift(*entry);
+      unsigned char fp = (unsigned char) hash;
+      unsigned int fpHash;
+      hash_item((unsigned char*) &fp,
+                    1,
+                    NUM_BUCKETS,
+      		      HASHFUN_NORM,
+                    &fpHash);
+      unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
 
-    const uint64_t hash = TwoIndependentMultiplyShift(*entry);
-
-    unsigned char fp = (unsigned char) hash;
-    unsigned int fpHash;
-    hash_item((unsigned char*) &fp,
-                  1,
-                  NUM_BUCKETS,
-    		      HASHFUN_NORM,
-                  &fpHash);
-    unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
-
-    //build edge
-    g->edges[currIdx].fp = fp;
-    g->edges[currIdx].src = bucket1 % NUM_BUCKETS;
-    g->edges[currIdx].dst = bucket2 % NUM_BUCKETS;
+      //build edge
+      g->edges[currIdx].fp = fp;
+      g->edges[currIdx].src = bucket1 % NUM_BUCKETS;
+      g->edges[currIdx].dst = bucket2 % NUM_BUCKETS;
 
 
-// 	Copy state to local memory for efficiency */
-//     curandState local_state = global_state[thread_id];
-// 	/* Generate pseudo - random unsigned ints
-//     g->edges[i].dir = curand_uniform(&local_state);
+  // 	Copy state to local memory for efficiency */
+  //     curandState local_state = global_state[thread_id];
+  // 	/* Generate pseudo - random unsigned ints
+  //     g->edges[i].dir = curand_uniform(&local_state);
 
-    //update bucket
-    atomicAdd(&(g->buckets[bucket1]), 1);
+      //update bucket
+      atomicAdd(&(g->buckets[bucket1]), 1);
+    }
   }
   syncthreads();
   g->printGraph();
