@@ -89,7 +89,7 @@ class Graph {
       num_edges = size;
       this->max_bucket_size = max_bucket_size;
       for(int i=0; i<NUM_BUCKETS; i++){
-        buckets[i] = -max_bucket_size;
+        buckets[i] = 0;
       }
       edges = NULL;
     }
@@ -198,7 +198,7 @@ __global__ void resetCollisions(Graph * g) {
     int currIdx = iter*total_threads + thread_id;
     if(currIdx < NUM_BUCKETS) {
       int * currBucket = &(g->buckets[currIdx]);
-      *currBucket = -g->max_bucket_size;
+      *currBucket = 0;
     }
 
   }
@@ -244,16 +244,18 @@ __global__ void processEdges(Graph * g, int* anyChange) {
 
       int rand;
       random((unsigned int)clock() + thread_id, &rand, 50);
-      if(*bucketCount > 0 && (rand % 2)) {
+      if(*bucketCount > 0) {
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
         if (old && old < LARGE_THRESHOLD_VAL) {
         	e->dir = e->dir ^ 1; // flip the bit
-          int new_bucket = e->dir != 0 ? e->src:e->dst;
           *anyChange = 1;
         }
       }
     }
   }
+
+  __syncthreads();
+  g->printGraph();
 }
 
 void initGraphCPU(int entry_size) {
