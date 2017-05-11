@@ -304,7 +304,6 @@ __global__ void makeGraphCuckoo(Graph * g, CuckooFilter * c, int * globalByteMas
       int currBucket = e->dir == 0 ? e->src:e->dst;
 
       int index = atomicAdd(&(globalByteMask[currBucket]), 1);
-      printf("%d\n",e->fp);
       c->insert(e->fp,currBucket,index);
     }
   }

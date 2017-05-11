@@ -15,8 +15,9 @@
 void generateRandomNumbers(unsigned int *numberArray, unsigned int n)
 {
     init_genrand(time(NULL));   //initialize random number generator
+    srand((unsigned int)time(NULL));
     for (int i = 0; i < n; i++){
-        numberArray[i] = genrand_int32();
+        numberArray[i] = rand();
         // std::cout << "entry " << i <<": " << numberArray[i] << std::endl;
     }
 }
