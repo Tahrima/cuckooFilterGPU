@@ -3,7 +3,7 @@ class CuckooFilter {
     char** buckets;
     unsigned int numBuckets;
     unsigned int bucketSize;
-    __device__ __host__ CuckoFilter(unsigned int numberOfBuckets, unsigned int bucketSizeIn) {
+    __host__ CuckoFilter(unsigned int numberOfBuckets, unsigned int bucketSizeIn) {
       numBuckets = numberOfBuckets;
       bucketSize = bucketSizeIn;
       cudaMalloc((void**)&buckets, sizeof(char*) * numBuckets);
@@ -11,7 +11,7 @@ class CuckooFilter {
         cudaMalloc((void**)&buckets[i], sizeof(char) * bucketSize);
       }
     }
-    __device__ __host__ void freeFilter() {
+    __host__ void freeFilter() {
       for (int i = 0; i < numBuckets; i++) {
         cudaFree(buckets[i]);
       }
