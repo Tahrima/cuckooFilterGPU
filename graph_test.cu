@@ -174,7 +174,7 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
                     g->num_buckets,
       		      HASHFUN_NORM,
                     &fpHash);
-      unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
+      unsigned int bucket2 = ((bucket1 ^ fpHash) & 0b11111111) % g->num_buckets;
 
       //build edge
 

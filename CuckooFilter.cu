@@ -12,8 +12,8 @@
 __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
     const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
-    const uint64_t m = SEED[(thread_id %2)+2];
-    const uint64_t a = SEED[thread_id % 2];
+    const uint64_t m = SEED[0];
+    const uint64_t a = SEED[2];
     //printf("thread: %d \t key: %u, m: %u, a: %u = %lu\n",thread_id, key, m, a, (a + m * key));
     return (a + m * key);
 }
@@ -45,14 +45,14 @@ class CuckooFilter {
       }
       cudaFree(buckets);
     }
-    __device__ void insert(unsigned int fingerprint, unsigned int bucketNum, unsigned int index) {
-      buckets[bucketNum][index] = (char)fingerprint;
+    __device__ void insert(char fingerprint, unsigned int bucketNum, unsigned int index) {
+      buckets[bucketNum][index] = fingerprint;
     }
-    __device__ unsigned int lookup(unsigned int bucketNum, unsigned int index) {
+    __device__ char lookup(unsigned int bucketNum, unsigned int index) {
       return(buckets[bucketNum][index]);
     }
-    __device__ unsigned int lookupFingerprintInBucket(unsigned int fingerprint, unsigned int bucketNum) {
-      int retVal = 0;
+    __device__ char lookupFingerprintInBucket(char fingerprint, unsigned int bucketNum) {
+      char retVal = 0;
       for (int i = 0; i < bucketSize; i++) {
         retVal = retVal || (fingerprint == buckets[bucketNum][i]);
       }
@@ -70,6 +70,16 @@ class CuckooFilter {
           printf("\n");
         }
       }
+    }
+    __device__ void printBucket(unsigned int numBucket) {
+      int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
+        for(int i=numBucket; i<=numBucket; i++) {
+          printf("Thread %d, Bucket %d: \t", thread_id, i);
+          for (int j = 0; j < bucketSize; j++) {
+            printf(" | %u |", (unsigned char)buckets[i][j]);
+          }
+          printf("\n");
+        }
     }
 };
 
@@ -99,16 +109,18 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int *lookUp
                       ck->numBuckets,
                       HASHFUN_NORM,
                       &fpHash);
-        unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
+        unsigned int bucket2 = ((bucket1 ^ fpHash) & 0b11111111) % ck->numBuckets;
 
         int in_b1 = ck->lookupFingerprintInBucket(fp, bucket1);
         int in_b2 = ck->lookupFingerprintInBucket(fp, bucket2);
 
-        results[currIdx] = in_b1 || in_b2;
-
-        printf("Thread id %d: entry = %u, fp = %u, b1= %u, b2=%u, results=%d\n", currIdx, entry, (unsigned char)fp, bucket1, bucket2, in_b1 || in_b2);
+        results[currIdx] = (char) (in_b1 || in_b2);
+        if (!results[currIdx]){
+            printf("Entry = %u, fp = %u, b%u=%u, b%u=%u, results=%d, ACTUAL %u\n", entry, (unsigned char)fp, bucket1, in_b1, bucket2, in_b2, in_b1 || in_b2, results[currIdx]);
+            ck->printBucket(bucket1);
+            ck->printBucket(bucket2);
+        }
       }
     }
     __syncthreads();
-    ck->printFilter();
 }

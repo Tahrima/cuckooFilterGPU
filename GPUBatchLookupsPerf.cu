@@ -43,11 +43,6 @@ int main(int argc, char* argv[])
     unsigned int* h_insertValues = new unsigned int[insertSize];
     generateRandomNumbers(h_insertValues, insertSize);
 
-
-    for (int k = 0; k < insertSize; k++){
-        printf("%d: %d \n", k, h_insertValues[k]);
-    }
-
     CuckooFilter * ckFilter = new CuckooFilter(numBuckets, bucketSize);
     insert((int *)h_insertValues, insertSize, numBuckets, bucketSize, ckFilter);
 
@@ -74,7 +69,7 @@ int main(int argc, char* argv[])
     lookUpGPU<<<(insertSize + 1023)/1024, 1024>>>(d_ckFilter, insertSize, d_lookUpValues, d_results);
     cudaDeviceSynchronize();
     char * h_results = new char[insertSize];
-    cudaMemcpy(&h_results, &d_results, insertSize* sizeof(char), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_results, d_results, insertSize* sizeof(char), cudaMemcpyDeviceToHost);
 
     cudaEventRecord(stop);
     cudaProfilerStop();
@@ -88,7 +83,7 @@ int main(int argc, char* argv[])
     std::cout << "Checking for correctness..."  << std::endl;
     int count = 0;
     for (int j = 0; j < insertSize; j++){
-        if (h_results[j] == 1)
+        if (h_results[j])
             count++;
     }
     printf("%d / %d = %f\n", count, insertSize, ((float)count/(float)insertSize));
