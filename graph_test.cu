@@ -22,6 +22,8 @@
 #include "hash/hash_functions.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
+#define MAX_BUCKET_SIZE 4
+#define NUM_BUCKETS 100
 
 __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
@@ -81,20 +83,15 @@ class Edge {
 
 class Graph {
   public:
-    int* buckets; //value at index i is the number of indegrees to a bucket i
+    int buckets[NUM_BUCKETS]; //value at index i is the number of indegrees to a bucket i
   	Edge *edges;
   	unsigned int num_edges;
-    unsigned int num_buckets;
-    unsigned int max_bucket_size;
-    __device__ __host__ Graph(unsigned int size, unsigned int nb, unsigned int mbs) {
+    __device__ __host__ Graph(unsigned int size) {
       num_edges = size;
-      num_buckets = nb;
-      max_bucket_size = mbs;
-      for(int i=0; i<num_buckets; i++){
+      for(int i=0; i<NUM_BUCKETS; i++){
         buckets[i] = 0;
       }
       edges = NULL;
-      cudaMalloc((void**)&buckets, sizeof(int)*num_buckets);
     }
 
     __device__ void printGraph() {
@@ -112,8 +109,8 @@ class Graph {
       int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
       if(thread_id == 0) {
         printf("\n\nBuckets\n");
-        for(int i=0; i<num_buckets; i++) {
-          if(buckets[i] > max_bucket_size) {
+        for(int i=0; i<NUM_BUCKETS; i++) {
+          if(buckets[i] > MAX_BUCKET_SIZE) {
             printf("Collisions for bucket %d: %d\n", i, buckets[i]);
           }
         }
@@ -155,7 +152,7 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
       unsigned int bucket1;
       hash_item((unsigned char*) entry,
                     4,
-                    g->num_buckets,
+                    NUM_BUCKETS,
       		      HASHFUN_NORM,
                     &bucket1);
 
@@ -164,7 +161,7 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
       unsigned int fpHash;
       hash_item((unsigned char*) &fp,
                     1,
-                    g->num_buckets,
+                    NUM_BUCKETS,
       		      HASHFUN_NORM,
                     &fpHash);
       unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
@@ -172,8 +169,8 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
       //build edge
 
       g->edges[currIdx].fp = fp;
-      g->edges[currIdx].src = bucket1 % g->num_buckets;
-      g->edges[currIdx].dst = bucket2 % g->num_buckets;
+      g->edges[currIdx].src = bucket1 % NUM_BUCKETS;
+      g->edges[currIdx].dst = bucket2 % NUM_BUCKETS;
 
 
   // 	Copy state to local memory for efficiency */
@@ -193,11 +190,11 @@ __global__ void resetCollisions(Graph * g) {
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
   int thread_id_block = threadIdx.x; //thread number in block
 
-  int rounds = (g->num_buckets % total_threads == 0) ? (g->num_buckets/total_threads):(g->num_buckets/total_threads + 1);
+  int rounds = (NUM_BUCKETS % total_threads == 0) ? (NUM_BUCKETS/total_threads):(NUM_BUCKETS/total_threads + 1);
 
   for (size_t iter = 0; iter < rounds; iter++) {
     int currIdx = iter*total_threads + thread_id;
-    if(currIdx < g->num_buckets) {
+    if(currIdx < NUM_BUCKETS) {
       int * currBucket = &(g->buckets[currIdx]);
       *currBucket = 0;
     }
@@ -245,7 +242,7 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
       //int rand;
       //random((unsigned int)clock() + thread_id, &rand, 50);
       syncthreads();
-      if(*bucketCount > g->max_bucket_size) {
+      if(*bucketCount > MAX_BUCKET_SIZE) {
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
         old--;
         int shift = randNum % tmp;
@@ -256,7 +253,7 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
         //   printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d \t Evicting %d from %d to %d\n", tmp, old, shift, shiftedValue, bucketOffset, e->fp, e->src, e->dst);
         // }
         //printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d\n", tmp, old, shift, shiftedValue, bucketOffset);
-        if (bucketOffset >= g->max_bucket_size && old < LARGE_THRESHOLD_VAL){
+        if (bucketOffset >= MAX_BUCKET_SIZE && old < LARGE_THRESHOLD_VAL){
         	e->dir = !e->dir; // flip the bit
 
             if (e->dir)
@@ -280,12 +277,12 @@ void initGraphCPU(int entry_size) {
     cudaMalloc(&e, sizeof(Edge)*entry_size);
 }
 
-void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size){
+void insert(int* entries, unsigned int num_entries){
   std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
 
-  	Graph *h_graph = new Graph(num_entries, num_buckets, bucket_size);
+  	Graph *h_graph = new Graph(num_entries);
 
   	//set up pointer
   	cudaMalloc((void**)&(h_graph->edges), sizeof(Edge)*num_entries);
@@ -302,7 +299,7 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
 
       // generate random number
 
-      unsigned int randNum = rand() % (num_buckets * 8);
+      unsigned int randNum = rand() % (NUM_BUCKETS * 8);
       std::cout << "Found all collisions, rand num: "<< randNum << std::endl;
       processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum);
       cudaDeviceSynchronize();
