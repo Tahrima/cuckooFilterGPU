@@ -284,6 +284,10 @@ __global__ void makeGraphCuckoo(Graph * g, CuckooFilter * c, int * globalByteMas
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
   int thread_id_block = threadIdx.x; //thread number in block
 
+  // if (thread_id==0) {
+  //   c->printFilter();
+  //   printf("\n");
+  // }
   int rounds = (g->num_edges % total_threads == 0) ? (g->num_edges/total_threads):((g->num_edges/total_threads)+1);
 
   for (size_t i = 0; i < rounds; i++) {
@@ -293,10 +297,15 @@ __global__ void makeGraphCuckoo(Graph * g, CuckooFilter * c, int * globalByteMas
       int currBucket = e->dir == 0 ? e->src:e->dst;
 
       int index = atomicAdd(&(globalByteMask[currBucket]), 1);
-
+      printf("%d\n",e->fp);
       c->insert(e->fp,currBucket,index);
     }
   }
+  __syncthreads();
+
+  // if (thread_id==0) {
+  //   c->printFilter();
+  // }
 }
 void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
   Graph * h_graph = (Graph*)malloc(sizeof(Graph));
@@ -310,6 +319,7 @@ void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
 
   makeGraphCuckoo<<<ceil((double)h_graph->num_buckets/1024), 1024>>>(g, c, g_byteMask);
   cudaDeviceSynchronize();
+
   delete byteMask;
 }
 
