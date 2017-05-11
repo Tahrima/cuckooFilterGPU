@@ -70,6 +70,7 @@ int main(int argc, char* argv[])
     cudaEventRecord(start);
     std::cout << "Calling lookup kernel" << std::endl;
     lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(d_ckFilter, numLookUps, d_lookUpValues, d_results);
+    cudaDeviceSynchronize();
 
     cudaEventRecord(stop);
     cudaProfilerStop();
@@ -85,7 +86,6 @@ int main(int argc, char* argv[])
     cudaMemcpy(&h_results, &d_results, numLookUps* sizeof(char), cudaMemcpyDeviceToHost);
 
     //Free Memory
-    ckFilter->freeFilter();
     delete[] h_insertValues;
     // cudaEventDestroy(start);
     // cudaEventDestroy(stop);
