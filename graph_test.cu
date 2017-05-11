@@ -247,21 +247,21 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
         int shift = randNum % tmp;
         int shiftedValue = old - shift;
-        int bucketOffset = (shiftedValue < 0) ? tmp - abs(shiftedValue) : shiftedValue;
-        if (bucketOffset > MAX_BUCKET_SIZE && old < LARGE_THRESHOLD_VAL) {
-          if (e->dir) {
-            printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d \t Evicting %d from %d to %d\n", tmp, old, shift, shiftedValue, bucketOffset, e->fp, e->dst, e->src);
-          } else {
-            printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d \t Evicting %d from %d to %d\n", tmp, old, shift, shiftedValue, bucketOffset, e->fp, e->src, e->dst);
-          }
+        int bucketOffset = (shiftedValue < 0) ? shiftedValue + tmp : shiftedValue;
+        //if (e->dir) {
+        // } else {
+        //   printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d \t Evicting %d from %d to %d\n", tmp, old, shift, shiftedValue, bucketOffset, e->fp, e->src, e->dst);
+        // }
+        if (bucketOffset > MAX_BUCKET_SIZE && old < LARGE_THRESHOLD_VAL){
+            printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d\n", tmp, old, shift, shiftedValue, bucketOffset);
         	e->dir = e->dir ^ 1; // flip the bit
-          *anyChange = 1;
+           *anyChange = 1;
         }
       }
     }
   }
 
-  __syncthreads();
+  syncthreads();
   g->printCollisions();
 }
 
