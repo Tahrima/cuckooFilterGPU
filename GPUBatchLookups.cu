@@ -2,8 +2,9 @@
 #include <assert.h>
 #include <cuda_profiler_api.h>
 
-#include "../mt19937ar.h"
+#include "mt19937ar.h"
 #include "CuckooFilter.cu"
+#include "graph_test.cu"
 
 #ifndef NOT_FOUND
 #define NOT_FOUND UINT_MAX

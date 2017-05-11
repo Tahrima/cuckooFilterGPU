@@ -1,3 +1,15 @@
+#include <math.h>
+#include "hash/hash_functions.cu"
+
+__device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
+    int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
+    const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
+    const uint64_t m = SEED[(thread_id %2)+2];
+    const uint64_t a = SEED[thread_id % 2];
+    //printf("thread: %d \t key: %u, m: %u, a: %u = %lu\n",thread_id, key, m, a, (a + m * key));
+    return (a + m * key);
+}
+
 class CuckooFilter {
   public:
     char** buckets;
@@ -51,29 +63,29 @@ class CuckooFilter {
     }
 };
 
-__global__ void lookupGPU(CuckooFilter *ck, int numLookUps, char * results){
+__global__ void lookupGPU(CuckooFilter *ck, int numLookUps, int* lookUps, char * results){
     int total_threads = blockDim.x * gridDim.x; //total threads
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
-    int rounds = (num_fp % total_threads == 0) ? (num_fp/total_threads):((num_fp/total_threads)+1);
+    int rounds = (numLookUps % total_threads == 0) ? (numLookUps/total_threads):((numLookUps/total_threads)+1);
 
     for (size_t i = 0; i < rounds; i++) {
       int currIdx = total_threads*i + thread_id;
-      if(currIdx < num_fp){
+      if(currIdx < numLookUps){
 
-        int entry = numLookUps[currIdx];
+        int entry = lookUps[currIdx];
         unsigned int bucket1;
         hash_item((unsigned char*) entry,
                       4,
-                      numBuckets,
+                      ck->numBuckets,
                       HASHFUN_NORM,
                       &bucket1);
 
-        const uint64_t hash = TwoIndependentMultiplyShift(*entry);
+        const uint64_t hash = TwoIndependentMultiplyShift(entry);
         unsigned char fp = (unsigned char) hash;
         unsigned int fpHash;
         hash_item((unsigned char*) &fp,
                       1,
-                      numBuckets,
+                      ck->numBuckets,
                       HASHFUN_NORM,
                       &fpHash);
         unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;

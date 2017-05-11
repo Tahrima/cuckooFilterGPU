@@ -18,22 +18,11 @@
 #include <climits>
 #include <curand.h>
 #include <curand_kernel.h>
-#include <math.h>
-#include "hash/hash_functions.cu"
-#include "CuckooFilter.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
 #define MAX_BUCKET_SIZE 4
 #define NUM_BUCKETS 100
 
-__device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
-    int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
-    const uint64_t SEED[4] = {0x818c3f78ull, 0x672f4a3aull, 0xabd04d69ull, 0x12b51f95ull};
-    const uint64_t m = SEED[(thread_id %2)+2];
-    const uint64_t a = SEED[thread_id % 2];
-    //printf("thread: %d \t key: %u, m: %u, a: %u = %lu\n",thread_id, key, m, a, (a + m * key));
-    return (a + m * key);
-}
 __device__ void random(unsigned int seed, int* result, int max) {
   /* CUDA's random number library uses curandState_t to keep track of the seed value
      we will store a random state for every thread  */
@@ -324,7 +313,7 @@ void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
 }
 
 
-void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size, CuckooFilter * cf){
+void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size){
     std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
@@ -363,9 +352,9 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
       count++;
     }
 
+    CuckooFilter * cf = new CuckooFilter(num_buckets, bucket_size);
 
     CuckooFilter * g_cf = (CuckooFilter *)cudaMallocAndCpy(sizeof(CuckooFilter), cf);
     transferToCuckooFilter(d_graph, g_cf);
-    cudaGetFromGPU(cf,g_cf,sizeof(CuckooFilter));
     printf("Count: %d\n",count);
 }
