@@ -35,28 +35,29 @@ int main(int argc, char* argv[])
 
     unsigned int numBuckets = atoi(argv[1]);
     unsigned int bucketSize = atoi(argv[2]);
-    unsigned float fillFraction = atoi(argv[3]);
+    float fillFraction = (float)atof(argv[3]);
     unsigned int numLookUps = atoi(argv[4]);
     //New random batch lookups
     //Generate values for random lookups
 
-    int insetSize = floor(numBuckets*bucketSize*fillFraction);
+    int insertSize = floor(numBuckets*bucketSize*fillFraction);
     unsigned int* h_insertValues = new unsigned int[insertSize];
     generateRandomNumbers(h_insertValues, insertSize);
 
-    CuckooFilter ckFilter = new CuckooFilter(numBuckets, bucketSize);
-    insert(h_randomValues, insertSize, numBuckets, bucketSize, ckFilter);
+    CuckooFilter * ckFilter = new CuckooFilter(numBuckets, bucketSize);
+    insert((int *)h_insertValues, insertSize, numBuckets, bucketSize, ckFilter);
 
     unsigned int* h_lookUpValues = new unsigned int[numLookUps];
     generateRandomNumbers(h_insertValues, numLookUps);
 
+    unsigned int * d_lookUpValues;
     cudaMalloc((void**) &d_lookUpValues, numLookUps * sizeof(unsigned int));
     cudaMemcpy(&d_lookUpValues, &h_lookUpValues, numLookUps * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
     //Output array
-    unsigned int* d_results;
-    cudaMalloc((void**) &d_results, numLookUps * sizeof(unsigned int));
-    cudaMemset(&d_results, 0, numLookUps * sizeof(unsigned int));
+    char * d_results;
+    cudaMalloc((void**) &d_results, numLookUps * sizeof(char));
+    cudaMemset(&d_results, 0, numLookUps * sizeof(char));
     // cudaEvent_t start, stop;
     // cudaEventCreate(&start);
     // cudaEventCreate(&stop);
@@ -64,10 +65,10 @@ int main(int argc, char* argv[])
     //Launch lookup kernel
     // cudaProfilerStart();
     // cudaEventRecord(start);
-    lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(ckFilter, numLookUps, d_batchLookupValues, d_results);
+    lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(ckFilter, numLookUps, d_lookUpValues, d_results);
     cudaDeviceSynchronize();
-    int * h_results = new int[numLookUps];
-    cudaMemcpy(&h_results, &d_results numLookUps* sizeof(unsigned int), cudaMemcpyDeviceToHost);
+    char * h_results = new char[numLookUps];
+    cudaMemcpy(&h_results, &d_results, numLookUps* sizeof(char), cudaMemcpyDeviceToHost);
     // cudaEventRecord(stop);
     // cudaProfilerStop();
 
@@ -81,10 +82,9 @@ int main(int argc, char* argv[])
     //Free Memory
     ckFilter->freeFilter();
     delete[] h_insertValues;
-    cudaFree(d_insertValues);
     // cudaEventDestroy(start);
     // cudaEventDestroy(stop);
-    delete[] h_lookupValues;
+    delete[] h_lookUpValues;
     cudaFree(d_lookUpValues);
     cudaFree(d_results);
     delete[] h_results;

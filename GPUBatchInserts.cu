@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
     //   h_randomValues[i] = i;    // }
     // return;
 //Random Inserts
-    CuckooFilter ckFilter = new CuckooFilter(numBuckets, bucketSize);
+    CuckooFilter * ckFilter = new CuckooFilter(numBuckets, bucketSize);
     insert(h_randomValues, numValues, numBuckets, bucketSize, ckFilter);
 //    printf("Insert rate = %f million ops/sec\n", numValues / filterBuildTime / 1000);
 

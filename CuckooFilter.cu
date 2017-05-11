@@ -1,5 +1,13 @@
 #include <math.h>
 #include "hash/hash_functions.cu"
+#include <cstring>
+#include <stdexcept>
+#include <cstdlib>
+#include <iostream>
+#include <fstream>
+#include <climits>
+#include <curand.h>
+#include <curand_kernel.h>
 
 __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
@@ -63,7 +71,7 @@ class CuckooFilter {
     }
 };
 
-__global__ void lookupGPU(CuckooFilter *ck, int numLookUps, int* lookUps, char * results){
+__global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUps, char * results){
     int total_threads = blockDim.x * gridDim.x; //total threads
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
     int rounds = (numLookUps % total_threads == 0) ? (numLookUps/total_threads):((numLookUps/total_threads)+1);
@@ -93,7 +101,7 @@ __global__ void lookupGPU(CuckooFilter *ck, int numLookUps, int* lookUps, char *
         int in_b1 = ck->lookupFingerprintInBucket(fp, bucket1);
         int in_b2 = ck->lookupFingerprintInBucket(fp, bucket2);
 
-        results[currIdx] = in_b1 || in_b2;
+        results[currIdx] = (char)in_b1 || in_b2;
       }
     }
 }

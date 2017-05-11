@@ -313,7 +313,7 @@ void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
 }
 
 
-void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size){
+void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size, CuckooFilter * cf){
     std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
@@ -352,9 +352,9 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
       count++;
     }
 
-    CuckooFilter * cf = new CuckooFilter(num_buckets, bucket_size);
 
     CuckooFilter * g_cf = (CuckooFilter *)cudaMallocAndCpy(sizeof(CuckooFilter), cf);
     transferToCuckooFilter(d_graph, g_cf);
+    cudaGetFromGPU(cf,g_cf, sizeof(CuckooFilter));
     printf("Count: %d\n",count);
 }
