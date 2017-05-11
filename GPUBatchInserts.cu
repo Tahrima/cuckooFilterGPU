@@ -47,9 +47,13 @@ int main(int argc, char* argv[])
     cudaMemset(d_qfilter.table, 0, calcNumSlotsGPU(q, r) * sizeof(unsigned char));
     */
     //Generate set of random numbers
+    
+
     unsigned int numBuckets = atoi(argv[1]);
     unsigned int bucketSize = atoi(argv[2]);
-    unsigned int numValues = atoi(argv[3]);
+    float percentFill = (float)atof(argv[3]);
+
+    int numValues = (numBuckets*buckets)*percentFill;
     int* h_randomValues = new int[numValues];
     generateRandomNumbers((unsigned int *)h_randomValues, numValues);
 
