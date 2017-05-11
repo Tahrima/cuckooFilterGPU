@@ -2,20 +2,20 @@ class CuckooFilter {
   public:
     char** buckets;
     unsigned int numBuckets;
-    __device__ __host__ CuckoFilter(unsigned int numberOfBuckets, unsigned int bucketSize) {
+    __host__ CuckooFilter(unsigned int numberOfBuckets, unsigned int bucketSize) {
       numBuckets = numberOfBuckets;
       cudaMalloc((void**)&buckets, sizeof(char*) * numBuckets);
       for(int i=0; i<numBuckets; i++){
         cudaMalloc((void**)&buckets[i], sizeof(char) * bucketSize);
       }
     }
-    __device__ __host__ freeFilter() {
+    __host__ void freeFilter() {
       for (int i = 0; i < numBuckets; i++) {
         cudaFree(buckets[i]);
       }
       cudaFree(buckets);
     }
-    __device__ insert(unsigned int fingerprint, unsigned int bucketNum, unsigned int index) {
+    __device__ void insert(unsigned int fingerprint, unsigned int bucketNum, unsigned int index) {
       buckets[bucketNum][index] = fingerprint;
     }
 

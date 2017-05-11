@@ -20,6 +20,7 @@
 #include <curand_kernel.h>
 #include <math.h>
 #include "hash/hash_functions.cu"
+#include "CuckooFilter.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
 #define MAX_BUCKET_SIZE 4
@@ -349,7 +350,7 @@ void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
   }
   int * g_byteMask = (int*)cudaMallocAndCpy(sizeof(int)*h_graph->num_buckets,(void*) byteMask);
 
-  makeGraphCuckoo<<<ceil((double)num_entries/1024), 1024>>>(g, c, globalByteMask);
+  makeGraphCuckoo<<<ceil((double)h_graph->num_buckets/1024), 1024>>>(g, c, g_byteMask);
   cudaDeviceSynchronize();
   delete byteMask;
 }
