@@ -9,14 +9,17 @@ class CuckooFilter {
         cudaMalloc((void**)&buckets[i], sizeof(char) * bucketSize);
       }
     }
-    __device__ __host__ freeFilter() {
+    __device__ __host__ void freeFilter() {
       for (int i = 0; i < numBuckets; i++) {
         cudaFree(buckets[i]);
       }
       cudaFree(buckets);
     }
-    __device__ insert(unsigned int fingerprint, unsigned int bucketNum, unsigned int index) {
+    __device__ void insert(unsigned int fingerprint, unsigned int bucketNum, unsigned int index) {
       buckets[bucketNum][index] = fingerprint;
+    }
+    __device__ unsigned int lookup(unsigned int bucketNum, unsigned int index) {
+      return(buckets[bucketNum][index]);
     }
 
     __device__ void printFilter() {
