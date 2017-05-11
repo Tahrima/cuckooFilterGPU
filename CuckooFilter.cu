@@ -3,7 +3,7 @@ class CuckooFilter {
     char** buckets;
     unsigned int numBuckets;
     unsigned int bucketSize;
-    __host__ CuckoFilter(unsigned int numberOfBuckets, unsigned int bucketSizeIn) {
+    __host__ CuckooFilter(unsigned int numberOfBuckets, unsigned int bucketSizeIn) {
       numBuckets = numberOfBuckets;
       bucketSize = bucketSizeIn;
       cudaMalloc((void**)&buckets, sizeof(char*) * numBuckets);
