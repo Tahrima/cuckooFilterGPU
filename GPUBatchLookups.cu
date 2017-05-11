@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     insert((int *)h_insertValues, insertSize, numBuckets, bucketSize, ckFilter);
 
     unsigned int* h_lookUpValues = new unsigned int[numLookUps];
-    generateRandomNumbers(h_insertValues, numLookUps);
+    generateRandomNumbers(h_lookUpValues, numLookUps);
 
     unsigned int * d_lookUpValues;
     cudaMalloc((void**) &d_lookUpValues, numLookUps * sizeof(unsigned int));
@@ -70,6 +70,7 @@ int main(int argc, char* argv[])
     cudaEventRecord(start);
     std::cout << "Calling lookup kernel" << std::endl;
     lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(d_ckFilter, numLookUps, d_lookUpValues, d_results);
+
     cudaEventRecord(stop);
     cudaProfilerStop();
 
