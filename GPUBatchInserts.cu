@@ -46,20 +46,18 @@ int main(int argc, char* argv[])
     cudaMemset(d_qfilter.table, 0, calcNumSlotsGPU(q, r) * sizeof(unsigned char));
     */
     //Generate set of random numbers
-    unsigned int num_buckets = atoi(argv[1]);
-    unsigned int bucket_size = atoi(argv[2]);
+    unsigned int numBuckets = atoi(argv[1]);
+    unsigned int bucketSize = atoi(argv[2]);
     unsigned int numValues = atoi(argv[3]);
     int* h_randomValues = new int[numValues];
     generateRandomNumbers((unsigned int *)h_randomValues, numValues);
 
 
     // for (size_t i = 0; i < numValues; i++) {
-    //   h_randomValues[i] = i;
-    std::cout << num_buckets << bucket_size << numValues << std::endl;
-    // }
+    //   h_randomValues[i] = i;    // }
     // return;
 //Random Inserts
-    insert(h_randomValues, numValues, num_buckets, bucket_size);
+    insert(h_randomValues, numValues, numBuckets, bucketSize);
 //    printf("Insert rate = %f million ops/sec\n", numValues / filterBuildTime / 1000);
 
 

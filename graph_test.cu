@@ -22,6 +22,8 @@
 #include "hash/hash_functions.cu"
 
 #define LARGE_THRESHOLD_VAL 10000
+#define MAX_BUCKET_SIZE 4
+#define NUM_BUCKETS 100
 
 __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
@@ -81,20 +83,19 @@ class Edge {
 
 class Graph {
   public:
-    int* buckets; //value at index i is the number of indegrees to a bucket i
+    int *buckets; //value at index i is the number of indegrees to a bucket i
   	Edge *edges;
   	unsigned int num_edges;
     unsigned int num_buckets;
     unsigned int max_bucket_size;
-    __device__ __host__ Graph(unsigned int size, unsigned int nb, unsigned int mbs) {
-      num_edges = size;
+
+    __device__ __host__ Graph(unsigned int edges, unsigned int nb, unsigned int bucket_size) {
+      num_edges = edges;
       num_buckets = nb;
-      max_bucket_size = mbs;
-      for(int i=0; i<num_buckets; i++){
-        buckets[i] = 0;
-      }
+      max_bucket_size = bucket_size;
+
+      buckets = new int[num_buckets]();
       edges = NULL;
-      cudaMalloc((void**)&buckets, sizeof(int)*num_buckets);
     }
 
     __device__ void printGraph() {
@@ -112,7 +113,7 @@ class Graph {
       int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
       if(thread_id == 0) {
         printf("\n\nBuckets\n");
-        for(int i=0; i<num_buckets; i++) {
+        for(int i=0; i< num_buckets ; i++) {
           if(buckets[i] > max_bucket_size) {
             printf("Collisions for bucket %d: %d\n", i, buckets[i]);
           }
@@ -185,7 +186,6 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
       atomicAdd(&(g->buckets[bucket1]), 1);
     }
   }
-  syncthreads();
 }
 __global__ void resetCollisions(Graph * g) {
 
@@ -214,7 +214,7 @@ __global__ void resetCollisions(Graph * g) {
       atomicAdd(&(g->buckets[b]),1);
     }
   }
-  g->printCollisions();
+  //g->printCollisions();
 }
 
 /**
@@ -244,7 +244,6 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
       //decrement the bucket count if > 0
       //int rand;
       //random((unsigned int)clock() + thread_id, &rand, 50);
-      syncthreads();
       if(*bucketCount > g->max_bucket_size) {
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
         old--;
@@ -259,18 +258,16 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
         if (bucketOffset >= g->max_bucket_size && old < LARGE_THRESHOLD_VAL){
         	e->dir = !e->dir; // flip the bit
 
-            if (e->dir)
-                printf("Evicting %d from %d to %d\n", e->fp, e->src, e->dst);
-            else
-                printf("Evicting %d from %d to %d\n", e->fp, e->dst, e->src);
+            // if (e->dir)
+            //     printf("Evicting %d from %d to %d\n", e->fp, e->src, e->dst);
+            // else
+            //     printf("Evicting %d from %d to %d\n", e->fp, e->dst, e->src);
            *anyChange = 1;
         }
       }
     }
   }
-
-  syncthreads();
-  g->printCollisions();
+  //g->printCollisions();
 }
 
 void initGraphCPU(int entry_size) {
@@ -281,7 +278,7 @@ void initGraphCPU(int entry_size) {
 }
 
 void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size){
-  std::cout << "Inserting " << num_entries << " entries"<< std::endl;
+    std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
 
@@ -289,6 +286,8 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
 
   	//set up pointer
   	cudaMalloc((void**)&(h_graph->edges), sizeof(Edge)*num_entries);
+    cudaMalloc((void**)&(h_graph->buckets), sizeof(int)*num_buckets);
+
   	Graph *d_graph = (Graph *) cudaMallocAndCpy(sizeof(Graph), h_graph);
   	int * d_entries = (int *) cudaMallocAndCpy(sizeof(int)*num_entries, entries);
 
@@ -303,13 +302,13 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
       // generate random number
 
       unsigned int randNum = rand() % (num_buckets * 8);
-      std::cout << "Found all collisions, rand num: "<< randNum << std::endl;
+      //std::cout << "Found all collisions, rand num: "<< randNum << std::endl;
       processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum);
       cudaDeviceSynchronize();
-      std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
+      //std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
 
       cudaGetFromGPU(&anychange, d_change, sizeof(int));
-      std::cout << "Got value of anychange: " << anychange << std::endl;
+      //std::cout << "Got value of anychange: " << anychange << std::endl;
       if(anychange == 1){
         resetCollisions<<<ceil((double)num_entries/1024), 1024>>>(d_graph);
       }
