@@ -72,6 +72,7 @@ class CuckooFilter {
 };
 
 __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUps, char * results){
+
     int total_threads = blockDim.x * gridDim.x; //total threads
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
     int rounds = (numLookUps % total_threads == 0) ? (numLookUps/total_threads):((numLookUps/total_threads)+1);
@@ -104,4 +105,5 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUp
         results[currIdx] = in_b1 || in_b2;
       }
     }
+    printf("Hi I am thread %d", thread_id);
 }
