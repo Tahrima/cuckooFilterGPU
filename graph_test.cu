@@ -247,12 +247,12 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
         int shift = randNum % tmp;
         int shiftedValue = old - shift;
-        int bucketOffset = (shiftedValue < 0) ? abs(shiftedValue) + tmp : bucketOffset;
+        int bucketOffset = (shiftedValue < 0) ? tmp - abs(shiftedValue) : shiftedValue;
         if (bucketOffset > MAX_BUCKET_SIZE && old < LARGE_THRESHOLD_VAL) {
           if (e->dir) {
-            printf("Evicting %d from %d to %d\n",e->fp, e->dst, e->src);
+            printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d \t Evicting %d from %d to %d\n", tmp, old, shift, shiftedValue, bucketOffset, e->fp, e->dst, e->src);
           } else {
-            printf("Evicting %d from %d to %d\n",e->fp, e->src, e->dst);
+            printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d \t Evicting %d from %d to %d\n", tmp, old, shift, shiftedValue, bucketOffset, e->fp, e->src, e->dst);
           }
         	e->dir = e->dir ^ 1; // flip the bit
           *anyChange = 1;
