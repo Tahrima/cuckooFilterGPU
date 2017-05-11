@@ -47,12 +47,9 @@ int main(int argc, char* argv[])
     */
     //Generate set of random numbers
     assert(argc==5);
-
     unsigned int numBuckets = atoi(argv[1]);
     unsigned int bucketSize = atoi(argv[2]);
-    float percentFill = (float)atof(argv[3]);
-
-    int numValues = (numBuckets*bucketSize)*percentFill;
+    unsigned int numValues = atoi(argv[3]);
     int* h_randomValues = new int[numValues];
     generateRandomNumbers((unsigned int *)h_randomValues, numValues);
 
