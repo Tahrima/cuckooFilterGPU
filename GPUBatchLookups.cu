@@ -61,27 +61,27 @@ int main(int argc, char* argv[])
     cudaMemset(&d_results, 0, numLookUps * sizeof(char));
 
     CuckooFilter * d_ckFilter = (CuckooFilter *) cudaMallocAndCpy(sizeof(CuckooFilter), ckFilter);
-    // cudaEvent_t start, stop;
-    // cudaEventCreate(&start);
-    // cudaEventCreate(&stop);
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     //Launch lookup kernel
-    // cudaProfilerStart();
-    // cudaEventRecord(start);
+    cudaProfilerStart();
+    cudaEventRecord(start);
     std::cout << "Calling lookup kernel" << std::endl;
     lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(d_ckFilter, numLookUps, d_lookUpValues, d_results);
-    cudaDeviceSynchronize();
+    cudaEventRecord(stop);
+    cudaProfilerStop();
+
+    // Calculate and print timing results
+    cudaEventSynchronize(stop);
+    float batchLookupTime = 0;
+    cudaEventElapsedTime(&batchLookupTime, start, stop);
+
+    printf("%f\n", numLookUps / batchLookupTime / 1000);
+
     char * h_results = new char[numLookUps];
     cudaMemcpy(&h_results, &d_results, numLookUps* sizeof(char), cudaMemcpyDeviceToHost);
-    // cudaEventRecord(stop);
-    // cudaProfilerStop();
-
-    //Calculate and print timing results
-    // cudaEventSynchronize(stop);
-    // float batchLookupTime = 0;
-    // cudaEventElapsedTime(&batchLookupTime, start, stop);
-//    printf("Random lookup rate = %f million ops/sec\n", numValues / randomLookupTime / 1000);
-    //printf("%f\n", batchSize / batchLookupTime / 1000);
 
     //Free Memory
     ckFilter->freeFilter();
