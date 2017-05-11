@@ -33,30 +33,33 @@ void CUDAErrorCheck()
 int main(int argc, char* argv[])
 {
 
-    assert(argc==5);
+    assert(argc==4);
     unsigned int numBuckets = atoi(argv[1]);
     unsigned int bucketSize = atoi(argv[2]);
     float fillFraction = (float)atof(argv[3]);
-    unsigned int numLookUps = atoi(argv[4]);
-    //New random batch lookups
     //Generate values for random lookups
 
     int insertSize = floor(numBuckets*bucketSize*fillFraction);
     unsigned int* h_insertValues = new unsigned int[insertSize];
     generateRandomNumbers(h_insertValues, insertSize);
 
+
+    for (int k = 0; k < insertSize; k++){
+        printf("%d: %d \n", k, h_insertValues[k]);
+    }
+
     CuckooFilter * ckFilter = new CuckooFilter(numBuckets, bucketSize);
     insert((int *)h_insertValues, insertSize, numBuckets, bucketSize, ckFilter);
 
     // Lookup values are the inserted values from earlier.
     unsigned int * d_lookUpValues;
-    cudaMalloc((void**) &d_lookUpValues, numLookUps * sizeof(unsigned int));
-    cudaMemcpy(&d_lookUpValues, &h_insertValues, numLookUps * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**) &d_lookUpValues, insertSize * sizeof(unsigned int));
+    cudaMemcpy(&d_lookUpValues, &h_insertValues, insertSize * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
     //Output array
     char * d_results;
-    cudaMalloc((void**) &d_results, numLookUps * sizeof(char));
-    cudaMemset(&d_results, 0, numLookUps * sizeof(char));
+    cudaMalloc((void**) &d_results, insertSize * sizeof(char));
+    cudaMemset(&d_results, 0, insertSize * sizeof(char));
 
     CuckooFilter * d_ckFilter = (CuckooFilter *) cudaMallocAndCpy(sizeof(CuckooFilter), ckFilter);
     cudaEvent_t start, stop;
@@ -68,10 +71,10 @@ int main(int argc, char* argv[])
     cudaEventRecord(start);
 
     std::cout << "Calling lookup kernel" << std::endl;
-    lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(d_ckFilter, numLookUps, d_lookUpValues, d_results);
+    lookUpGPU<<<(insertSize + 1023)/1024, 1024>>>(d_ckFilter, insertSize, d_lookUpValues, d_results);
     cudaDeviceSynchronize();
-    char * h_results = new char[numLookUps];
-    cudaMemcpy(&h_results, &d_results, numLookUps* sizeof(char), cudaMemcpyDeviceToHost);
+    char * h_results = new char[insertSize];
+    cudaMemcpy(&h_results, &d_results, insertSize* sizeof(char), cudaMemcpyDeviceToHost);
 
     cudaEventRecord(stop);
     cudaProfilerStop();
@@ -80,8 +83,15 @@ int main(int argc, char* argv[])
     cudaEventSynchronize(stop);
     float batchLookupTime = 0;
     cudaEventElapsedTime(&batchLookupTime, start, stop);
-    printf("%f\n", numLookUps / batchLookupTime / 1000);
+    printf("%f\n", insertSize / batchLookupTime / 1000);
 
+    std::cout << "Checking for correctness..."  << std::endl;
+    int count = 0;
+    for (int j = 0; j < insertSize; j++){
+        if (h_results[j] == 1)
+            count++;
+    }
+    printf("%d / %d = %f\n", count, insertSize, ((float)count/(float)insertSize));
 
     //Free Memory
      delete[] h_insertValues;

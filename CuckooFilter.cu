@@ -105,7 +105,10 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUp
         int in_b2 = ck->lookupFingerprintInBucket(fp, bucket2);
 
         results[currIdx] = in_b1 || in_b2;
+
+        printf("Thread id %d: entry = %d, fp = %u, b1= %u, b2=%u, results=%d\n", thread_id, entry, (unsigned char)fp, bucket1, bucket2, in_b1 || in_b2);
       }
     }
     __syncthreads();
+    ck->printFilter();
 }
