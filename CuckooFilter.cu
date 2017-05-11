@@ -50,10 +50,10 @@ class CuckooFilter {
     }
 };
 
-__global__ void lookupGPU(CuckooFilter ck, unsigned int *fp, unsigned int* b1, unsigned int *b2, char * results, int num_fp){
+__global__ void lookupGPU(CuckooFilter *ck, unsigned int *fp, unsigned int* b1, unsigned int *b2, char * results, int num_fp){
     int total_threads = blockDim.x * gridDim.x; //total threads
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
-    int rounds = (num_fp % total_threads == 0) ? (num_fp/total_threads):(num_fp/total_threads)+1);
+    int rounds = (num_fp % total_threads == 0) ? (num_fp/total_threads):((num_fp/total_threads)+1);
 
     for (size_t i = 0; i < rounds; i++) {
       int currIdx = total_threads*i + thread_id;
