@@ -12,9 +12,9 @@
 
 void generateRandomNumbers(unsigned int *numberArray, unsigned int n)
 {
-    init_genrand(time(NULL));   //initialize random number generator
+    srand((unsigned int)time(NULL));
     for (int i = 0; i < n; i++){
-        numberArray[i] = genrand_int32();
+        numberArray[i] = rand();
     }
 }
 
@@ -33,6 +33,7 @@ void CUDAErrorCheck()
 int main(int argc, char* argv[])
 {
 
+    assert(argc==5);
     unsigned int numBuckets = atoi(argv[1]);
     unsigned int bucketSize = atoi(argv[2]);
     float fillFraction = (float)atof(argv[3]);
@@ -58,6 +59,8 @@ int main(int argc, char* argv[])
     char * d_results;
     cudaMalloc((void**) &d_results, numLookUps * sizeof(char));
     cudaMemset(&d_results, 0, numLookUps * sizeof(char));
+
+    CuckooFilter * d_ckFilter = (CuckooFilter *) cudaMallocAndCpy(sizeof(CuckooFilter), ckFilter);
     // cudaEvent_t start, stop;
     // cudaEventCreate(&start);
     // cudaEventCreate(&stop);
@@ -65,7 +68,8 @@ int main(int argc, char* argv[])
     //Launch lookup kernel
     // cudaProfilerStart();
     // cudaEventRecord(start);
-    lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(ckFilter, numLookUps, d_lookUpValues, d_results);
+    std::cout << "Calling lookup kernel" << std::endl;
+    lookUpGPU<<<(numLookUps + 1023)/1024, 1024>>>(d_ckFilter, numLookUps, d_lookUpValues, d_results);
     cudaDeviceSynchronize();
     char * h_results = new char[numLookUps];
     cudaMemcpy(&h_results, &d_results, numLookUps* sizeof(char), cudaMemcpyDeviceToHost);

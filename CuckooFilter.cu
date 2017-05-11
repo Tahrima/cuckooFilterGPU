@@ -1,5 +1,3 @@
-#include <math.h>
-#include "hash/hash_functions.cu"
 #include <cstring>
 #include <stdexcept>
 #include <cstdlib>
@@ -8,6 +6,8 @@
 #include <climits>
 #include <curand.h>
 #include <curand_kernel.h>
+#include <math.h>
+#include "hash/hash_functions.cu"
 
 __device__ uint64_t TwoIndependentMultiplyShift(unsigned int key) {
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
@@ -82,7 +82,7 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUp
 
         int entry = lookUps[currIdx];
         unsigned int bucket1;
-        hash_item((unsigned char*) entry,
+        hash_item((unsigned char*) &entry,
                       4,
                       ck->numBuckets,
                       HASHFUN_NORM,
@@ -101,7 +101,7 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUp
         int in_b1 = ck->lookupFingerprintInBucket(fp, bucket1);
         int in_b2 = ck->lookupFingerprintInBucket(fp, bucket2);
 
-        results[currIdx] = (char)in_b1 || in_b2;
+        results[currIdx] = in_b1 || in_b2;
       }
     }
 }
