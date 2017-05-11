@@ -51,7 +51,7 @@ class CuckooFilter {
     }
 };
 
-__global__ void lookupGPU(CuckooFilter *ck, unsigned int *fp, unsigned int* b1, unsigned int *b2, char * results, int num_fp){
+__global__ void lookupGPU(CuckooFilter *ck, int numLookUps, char * results){
     int total_threads = blockDim.x * gridDim.x; //total threads
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
     int rounds = (num_fp % total_threads == 0) ? (num_fp/total_threads):((num_fp/total_threads)+1);
@@ -59,11 +59,29 @@ __global__ void lookupGPU(CuckooFilter *ck, unsigned int *fp, unsigned int* b1, 
     for (size_t i = 0; i < rounds; i++) {
       int currIdx = total_threads*i + thread_id;
       if(currIdx < num_fp){
-        int in_b1 = ck->lookupFingerprintInBucket(fp[currIdx], b1[currIdx]);
-        int in_b2 = ck->lookupFingerprintInBucket(fp[currIdx], b2[currIdx]);
+
+        int entry = numLookUps[currIdx];
+        unsigned int bucket1;
+        hash_item((unsigned char*) entry,
+                      4,
+                      numBuckets,
+                      HASHFUN_NORM,
+                      &bucket1);
+
+        const uint64_t hash = TwoIndependentMultiplyShift(*entry);
+        unsigned char fp = (unsigned char) hash;
+        unsigned int fpHash;
+        hash_item((unsigned char*) &fp,
+                      1,
+                      numBuckets,
+                      HASHFUN_NORM,
+                      &fpHash);
+        unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
+
+        int in_b1 = ck->lookupFingerprintInBucket(fp, bucket1);
+        int in_b2 = ck->lookupFingerprintInBucket(fp, bucket2);
 
         results[currIdx] = in_b1 || in_b2;
-
       }
     }
 }

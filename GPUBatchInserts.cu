@@ -5,6 +5,7 @@
 #include <cuda_profiler_api.h>
 
 #include "mt19937ar.h"
+#include "CuckooFilter.cu"
 #include "graph_test.cu"
 
 #ifndef NOT_FOUND
@@ -57,7 +58,8 @@ int main(int argc, char* argv[])
     //   h_randomValues[i] = i;    // }
     // return;
 //Random Inserts
-    insert(h_randomValues, numValues, numBuckets, bucketSize);
+    CuckooFilter ckFilter = new CuckooFilter(numBuckets, bucketSize);
+    insert(h_randomValues, numValues, numBuckets, bucketSize, ckFilter);
 //    printf("Insert rate = %f million ops/sec\n", numValues / filterBuildTime / 1000);
 
 
