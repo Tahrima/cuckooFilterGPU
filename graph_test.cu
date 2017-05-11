@@ -278,6 +278,42 @@ void initGraphCPU(int entry_size) {
     cudaMalloc(&e, sizeof(Edge)*entry_size);
 }
 
+__global__ void makeGraphCuckoo(Graph * g, CuckooFilter * c, int * globalByteMask) {
+
+  int total_threads = blockDim.x * gridDim.x; //total threads
+  int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
+  int thread_id_block = threadIdx.x; //thread number in block
+
+  int rounds = (g->num_edges % total_threads == 0) ? (g->num_edges/total_threads):((g->num_edges/total_threads)+1);
+
+  for (size_t i = 0; i < rounds; i++) {
+    int currIdx = total_threads*i + thread_id;
+    if(currIdx < g->num_edges) {
+      Edge * e = &(g->edges[currIdx]);
+      int currBucket = e->dir == 0 ? e->src:e->dst;
+
+      int index = atomicAdd(&(globalByteMask[currBucket]), 1);
+
+      c->insert(e->fp,currBucket,index);
+    }
+  }
+}
+void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
+  Graph * h_graph = (Graph*)malloc(sizeof(Graph));
+  cudaGetFromGPU(h_graph, g, sizeof(Graph));
+
+  int * byteMask = new int[h_graph->num_buckets];
+  for (size_t i = 0; i < h_graph->num_buckets; i++) {
+    byteMask[i] = 0;
+  }
+  int * g_byteMask = (int*)cudaMallocAndCpy(sizeof(int)*h_graph->num_buckets,(void*) byteMask);
+
+  makeGraphCuckoo<<<ceil((double)h_graph->num_buckets/1024), 1024>>>(g, c, g_byteMask);
+  cudaDeviceSynchronize();
+  delete byteMask;
+}
+
+
 void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size){
     std::cout << "Inserting " << num_entries << " entries"<< std::endl;
 	int anychange = 1;
@@ -316,41 +352,10 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
       cudaDeviceSynchronize();
       count++;
     }
+
+    CuckooFilter * cf = new CuckooFilter(num_buckets, bucket_size);
+
+    CuckooFilter * g_cf = (CuckooFilter *)cudaMallocAndCpy(sizeof(CuckooFilter), cf);
+    transferToCuckooFilter(d_graph, g_cf);
     printf("Count: %d\n",count);
-}
-
-
-__global__ void makeGraphCuckoo(Graph * g, CuckooFilter * c, int * globalByteMask) {
-  int total_threads = blockDim.x * gridDim.x; //total threads
-  int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
-  int thread_id_block = threadIdx.x; //thread number in block
-
-  int rounds = (g->num_buckets % total_threads == 0) ? (g->num_edges/total_threads):((g->num_buckets/total_threads)+1);
-
-  for (size_t i = 0; i < rounds; i++) {
-    int currIdx = total_threads*i + thread_id;
-    if(currIdx < g->num_buckets) {
-      Edge * e = &(g->edges[currIdx]);
-      int currBucket = e->dir == 0 ? e->src:e->dst;
-
-      int index = atomicAdd(&(globalByteMask[currBucket]), 1);
-
-      c->insert(e->fp,currBucket,index);
-    }
-  }
-}
-void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
-  Graph * h_graph = (Graph*)malloc(sizeof(Graph));
-
-  cudaGetFromGPU(h_graph, g, sizeof(Graph));
-
-  int * byteMask = new int[h_graph->num_buckets];
-  for (size_t i = 0; i < h_graph->num_buckets; i++) {
-    byteMask[i] = 0;
-  }
-  int * g_byteMask = (int*)cudaMallocAndCpy(sizeof(int)*h_graph->num_buckets,(void*) byteMask);
-
-  makeGraphCuckoo<<<ceil((double)h_graph->num_buckets/1024), 1024>>>(g, c, g_byteMask);
-  cudaDeviceSynchronize();
-  delete byteMask;
 }

@@ -6,10 +6,15 @@ class CuckooFilter {
     __host__ CuckooFilter(unsigned int numberOfBuckets, unsigned int bucketSizeIn) {
       numBuckets = numberOfBuckets;
       bucketSize = bucketSizeIn;
-      cudaMalloc((void**)&buckets, sizeof(char*) * numBuckets);
+
+
+
+      char ** tmpbuckets = new char*[numberOfBuckets];
       for(int i=0; i<numBuckets; i++){
-        cudaMalloc((void**)&buckets[i], sizeof(char) * bucketSize);
+        cudaMalloc((void**)&tmpbuckets[i], sizeof(char) * bucketSize);
       }
+      cudaMalloc((void**)&buckets, sizeof(char*)*numberOfBuckets);
+      cudaMemcpy(buckets, tmpbuckets, sizeof(char*)*numberOfBuckets, cudaMemcpyHostToDevice);
     }
     __host__ void freeFilter() {
       for (int i = 0; i < numBuckets; i++) {
