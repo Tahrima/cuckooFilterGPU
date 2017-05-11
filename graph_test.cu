@@ -18,10 +18,28 @@
 #include <climits>
 #include <curand.h>
 #include <curand_kernel.h>
+#include <sys/time.h>
 
 #define LARGE_THRESHOLD_VAL 10000
 #define MAX_BUCKET_SIZE 4
 #define NUM_BUCKETS 100
+
+double preprocessTime = 0;
+double insertTime = 0;
+
+struct timeval StartingTime;
+
+void setTime(){
+	gettimeofday( &StartingTime, NULL );
+}
+
+double getTime(){
+	struct timeval PausingTime, ElapsedTime;
+	gettimeofday( &PausingTime, NULL );
+	timersub(&PausingTime, &StartingTime, &ElapsedTime);
+	return ElapsedTime.tv_sec*1000.0+ElapsedTime.tv_usec/1000.0;	// Returning in milliseconds.
+}
+
 
 __device__ void random(unsigned int seed, int* result, int max) {
   /* CUDA's random number library uses curandState_t to keep track of the seed value
@@ -328,7 +346,9 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
   	int * d_entries = (int *) cudaMallocAndCpy(sizeof(int)*num_entries, entries);
 
     std::cout << "Calling kernel" << std::endl;
+    setTime();
     findAllCollisions<<<2, 512>>>(d_entries, num_entries, d_graph);
+    preprocessTime = getTime();
     cudaDeviceSynchronize();
     int count = 0;
   	while (anychange != 0){
@@ -336,17 +356,20 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
       cudaSendToGPU(d_change, &anychange, sizeof(int));
 
       // generate random number
-
+      setTime();
       unsigned int randNum = rand() % (num_buckets * 8);
       //std::cout << "Found all collisions, rand num: "<< randNum << std::endl;
       processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum);
+      preprocessTime += getTime();
       cudaDeviceSynchronize();
       //std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
 
       cudaGetFromGPU(&anychange, d_change, sizeof(int));
       //std::cout << "Got value of anychange: " << anychange << std::endl;
       if(anychange == 1){
+        setTime();
         resetCollisions<<<ceil((double)num_entries/1024), 1024>>>(d_graph);
+        preprocessTime += getTime();
       }
       cudaDeviceSynchronize();
       count++;
@@ -354,7 +377,9 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
 
 
     CuckooFilter * g_cf = (CuckooFilter *)cudaMallocAndCpy(sizeof(CuckooFilter), cf);
+    setTime();
     transferToCuckooFilter(d_graph, g_cf);
+    insertTime = getTime();
     cudaGetFromGPU(cf,g_cf, sizeof(CuckooFilter));
     printf("Count: %d\n",count);
 }
