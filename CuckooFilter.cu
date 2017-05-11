@@ -38,8 +38,10 @@ class CuckooFilter {
       cudaMemcpy(buckets, tmpbuckets, sizeof(char*)*numberOfBuckets, cudaMemcpyHostToDevice);
     }
     __host__ void freeFilter() {
+      char ** tmpBuckets = new char*[bucketSize];
+      cudaMemcpy(tmpBuckets, tmpBuckets, sizeof(char*)*numBuckets, cudaMemcpyDeviceToHost);
       for (int i = 0; i < numBuckets; i++) {
-        cudaFree(buckets[i]);
+        cudaFree(tmpBuckets[i]);
       }
       cudaFree(buckets);
     }
@@ -105,5 +107,5 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUp
         results[currIdx] = in_b1 || in_b2;
       }
     }
-    printf("Hi I am thread %d", thread_id);
+    __syncthreads();
 }
