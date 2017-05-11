@@ -73,7 +73,7 @@ class CuckooFilter {
     }
 };
 
-__global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUps, char * results){
+__global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int *lookUps, char * results){
 
     int total_threads = blockDim.x * gridDim.x; //total threads
     int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
@@ -83,7 +83,7 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUp
       int currIdx = total_threads*i + thread_id;
       if(currIdx < numLookUps){
 
-        int entry = lookUps[currIdx];
+        unsigned int entry = lookUps[currIdx];
         unsigned int bucket1;
         hash_item((unsigned char*) &entry,
                       4,
@@ -106,7 +106,7 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int* lookUp
 
         results[currIdx] = in_b1 || in_b2;
 
-        printf("Thread id %d: entry = %d, fp = %u, b1= %u, b2=%u, results=%d\n", thread_id, entry, (unsigned char)fp, bucket1, bucket2, in_b1 || in_b2);
+        printf("Thread id %d: entry = %u, fp = %u, b1= %u, b2=%u, results=%d\n", currIdx, entry, (unsigned char)fp, bucket1, bucket2, in_b1 || in_b2);
       }
     }
     __syncthreads();

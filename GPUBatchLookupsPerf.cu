@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
     // Lookup values are the inserted values from earlier.
     unsigned int * d_lookUpValues;
     cudaMalloc((void**) &d_lookUpValues, insertSize * sizeof(unsigned int));
-    cudaMemcpy(&d_lookUpValues, &h_insertValues, insertSize * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_lookUpValues, h_insertValues, insertSize * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
     //Output array
     char * d_results;
