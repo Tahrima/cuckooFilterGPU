@@ -116,9 +116,17 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int *lookUp
 
         results[currIdx] = (char) (in_b1 || in_b2);
         if (!results[currIdx]){
-            printf("Entry = %u, fp = %u, b%u=%u, b%u=%u, results=%d, ACTUAL %u\n", entry, (unsigned char)fp, bucket1, in_b1, bucket2, in_b2, in_b1 || in_b2, results[currIdx]);
-            ck->printBucket(bucket1);
-            ck->printBucket(bucket2);
+            /*unsigned char bucket1Vals[4];
+            unsigned char bucket2Vals[4];
+            for (int i = 0; i < 4; i++) {
+              bucket1Vals[i] = ck->lookup(bucket1, i);
+              bucket2Vals[i] = ck->lookup(bucket2, i);
+            }
+            printf("Entry = %u, fp = %u, b%u=%u, b%u=%u, results=%d, ACTUAL %u\nBucket1 Values: %u | %u | %u | %u\nBucket2 Values: %u | %u | %u | %u\n", entry, (unsigned char)fp, bucket1, in_b1, bucket2, in_b2, in_b1 || in_b2, results[currIdx],
+           bucket1Vals[0], bucket1Vals[1], bucket1Vals[2], bucket1Vals[3],
+           bucket2Vals[0], bucket2Vals[1], bucket2Vals[2], bucket2Vals[3]);*/
+            //ck->printBucket(bucket1);
+            //ck->printBucket(bucket2);
         }
       }
     }

@@ -21,6 +21,8 @@
 #include <sys/time.h>
 
 #define LARGE_THRESHOLD_VAL 10000
+#define MAX_BUCKET_SIZE 4
+#define NUM_BUCKETS 100
 
 double preprocessTime = 0;
 double insertTime = 0;
@@ -174,7 +176,7 @@ __global__ void findAllCollisions(int* entries, int entryListSize, Graph * g) {
                     g->num_buckets,
       		      HASHFUN_NORM,
                     &fpHash);
-      unsigned int bucket2 = ((bucket1 ^ fpHash) & 0b11111111) % g->num_buckets;
+      unsigned int bucket2 = (bucket1 ^ fpHash) & 0b11111111;
 
       //build edge
 
@@ -311,7 +313,7 @@ __global__ void makeGraphCuckoo(Graph * g, CuckooFilter * c, int * globalByteMas
   //   c->printFilter();
   // }
 }
-double transferToCuckooFilter(Graph * g, CuckooFilter * c) {
+void transferToCuckooFilter(Graph * g, CuckooFilter * c) {
   Graph * h_graph = (Graph*)malloc(sizeof(Graph));
   cudaGetFromGPU(h_graph, g, sizeof(Graph));
 
@@ -321,22 +323,15 @@ double transferToCuckooFilter(Graph * g, CuckooFilter * c) {
   }
   int * g_byteMask = (int*)cudaMallocAndCpy(sizeof(int)*h_graph->num_buckets,(void*) byteMask);
 
-  setTime();
   makeGraphCuckoo<<<ceil((double)h_graph->num_buckets/1024), 1024>>>(g, c, g_byteMask);
   cudaDeviceSynchronize();
-  double insertTime = getTime();
 
   delete byteMask;
-
-  return insertTime;
 }
 
 
-int insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size, CuckooFilter * cf){
+void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, unsigned int bucket_size, CuckooFilter * cf){
     std::cout << "Inserting " << num_entries << " entries"<< std::endl;
-
-	const int fail_threshold = (int)(sqrt(num_buckets*bucket_size)*log2((float)(num_buckets*bucket_size)));
-
 	int anychange = 1;
   	int * d_change = (int *) cudaMallocAndCpy(sizeof(int), &anychange);
 
@@ -352,8 +347,8 @@ int insert(int* entries, unsigned int num_entries, unsigned int num_buckets, uns
     std::cout << "Calling kernel" << std::endl;
     setTime();
     findAllCollisions<<<2, 512>>>(d_entries, num_entries, d_graph);
-	cudaDeviceSynchronize();
     preprocessTime = getTime();
+    cudaDeviceSynchronize();
     int count = 0;
   	while (anychange != 0){
       anychange = 0;
@@ -364,9 +359,8 @@ int insert(int* entries, unsigned int num_entries, unsigned int num_buckets, uns
       unsigned int randNum = rand() % (num_buckets * 8);
       //std::cout << "Found all collisions, rand num: "<< randNum << std::endl;
       processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum);
+      preprocessTime += getTime();
       cudaDeviceSynchronize();
-	  preprocessTime += getTime();
-
       //std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
 
       cudaGetFromGPU(&anychange, d_change, sizeof(int));
@@ -374,25 +368,17 @@ int insert(int* entries, unsigned int num_entries, unsigned int num_buckets, uns
       if(anychange == 1){
         setTime();
         resetCollisions<<<ceil((double)num_entries/1024), 1024>>>(d_graph);
-		cudaDeviceSynchronize();
-
         preprocessTime += getTime();
       }
-
-	  count++;
-	  if (count >= fail_threshold)
-	  	return count;
+      cudaDeviceSynchronize();
+      count++;
     }
 
 
     CuckooFilter * g_cf = (CuckooFilter *)cudaMallocAndCpy(sizeof(CuckooFilter), cf);
     setTime();
-    insertTime = transferToCuckooFilter(d_graph, g_cf);
+    transferToCuckooFilter(d_graph, g_cf);
+    insertTime = getTime();
     cudaGetFromGPU(cf,g_cf, sizeof(CuckooFilter));
-
-	printf("Preprocessing time %f\n", preprocessTime);
-	printf("Insertion time: %f\n", insertTime);
-    printf("Completed insertion with %d iterations\n",count);
-
-	return 0;
+    printf("Count: %d\n",count);
 }
