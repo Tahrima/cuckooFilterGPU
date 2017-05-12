@@ -115,11 +115,11 @@ __global__ void lookUpGPU(CuckooFilter *ck, int numLookUps, unsigned int *lookUp
         int in_b2 = ck->lookupFingerprintInBucket(fp, bucket2);
 
         results[currIdx] = (char) (in_b1 || in_b2);
-        if (!results[currIdx]){
-            printf("Entry = %u, fp = %u, b%u=%u, b%u=%u, results=%d, ACTUAL %u\n", entry, (unsigned char)fp, bucket1, in_b1, bucket2, in_b2, in_b1 || in_b2, results[currIdx]);
-            ck->printBucket(bucket1);
-            ck->printBucket(bucket2);
-        }
+        // if (!results[currIdx]){
+        //     printf("Entry = %u, fp = %u, b%u=%u, b%u=%u, results=%d, ACTUAL %u\n", entry, (unsigned char)fp, bucket1, in_b1, bucket2, in_b2, in_b1 || in_b2, results[currIdx]);
+        //     ck->printBucket(bucket1);
+        //     ck->printBucket(bucket2);
+        // }
       }
     }
     __syncthreads();

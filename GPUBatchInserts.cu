@@ -46,20 +46,17 @@ int main(int argc, char* argv[])
     cudaMemset(d_qfilter.table, 0, calcNumSlotsGPU(q, r) * sizeof(unsigned char));
     */
     //Generate set of random numbers
-    assert(argc==5);
+    assert(argc==4);
     unsigned int numBuckets = atoi(argv[1]);
     unsigned int bucketSize = atoi(argv[2]);
-    unsigned int numValues = atoi(argv[3]);
-    int* h_randomValues = new int[numValues];
-    generateRandomNumbers((unsigned int *)h_randomValues, numValues);
+    float fillFraction = (float)atof(argv[3]);
 
+    int insertSize = floor(numBuckets*bucketSize*fillFraction);
+    unsigned int* h_randomValues = new unsigned int[insertSize];
+    generateRandomNumbers(h_randomValues, insertSize);
 
-    // for (size_t i = 0; i < numValues; i++) {
-    //   h_randomValues[i] = i;    // }
-    // return;
-//Random Inserts
     CuckooFilter * ckFilter = new CuckooFilter(numBuckets, bucketSize);
-    insert(h_randomValues, numValues, numBuckets, bucketSize, ckFilter);
+    insert((int *)h_randomValues, insertSize, numBuckets, bucketSize, ckFilter);
 //    printf("Insert rate = %f million ops/sec\n", numValues / filterBuildTime / 1000);
 
 

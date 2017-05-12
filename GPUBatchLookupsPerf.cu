@@ -79,15 +79,6 @@ int main(int argc, char* argv[])
     float batchLookupTime = 0;
     cudaEventElapsedTime(&batchLookupTime, start, stop);
     printf("%f\n", insertSize / batchLookupTime / 1000);
-
-    std::cout << "Checking for correctness..."  << std::endl;
-    int count = 0;
-    for (int j = 0; j < insertSize; j++){
-        if (h_results[j])
-            count++;
-    }
-    printf("%d / %d = %f\n", count, insertSize, ((float)count/(float)insertSize));
-
     //Free Memory
      delete[] h_insertValues;
     // cudaEventDestroy(start);
