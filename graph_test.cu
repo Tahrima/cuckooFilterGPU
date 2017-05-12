@@ -230,7 +230,7 @@ __global__ void resetCollisions(Graph * g) {
  * Finds random edges to evict until capacity for each bucket is equal to 0
  *
  */
-__global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
+__global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum, int * tmpBuckets) {
   int total_threads = blockDim.x * gridDim.x; //total threads
   int thread_id = blockDim.x * blockIdx.x + threadIdx.x; //real thread number
   int thread_id_block = threadIdx.x; //thread number in block
@@ -248,16 +248,17 @@ __global__ void processEdges(Graph * g, int* anyChange, unsigned int randNum) {
 
       //check the bucket
       int * bucketCount = &(g->buckets[curr_bucket]);
-      int tmp = *bucketCount;
       //decrement the bucket count if > 0
       //int rand;
       //random((unsigned int)clock() + thread_id, &rand, 50);
-      if(*bucketCount > g->max_bucket_size) {
+			__syncthreads();
+      if(tmpBuckets[curr_bucket] >= g->max_bucket_size) {
+				//*anyChange = 1;
         int old = atomicDec((unsigned int *)bucketCount, INT_MAX);
         old--;
-        int shift = randNum % tmp;
+        int shift = randNum % tmpBuckets[curr_bucket];
         int shiftedValue = old - shift;
-        int bucketOffset = (shiftedValue < 0) ? shiftedValue + tmp : shiftedValue;
+        int bucketOffset = (shiftedValue < 0) ? shiftedValue + tmpBuckets[curr_bucket] : shiftedValue;
         //if (e->dir) {
         // } else {
         //   printf("tmp %d, old %d, shift %d, shiftedValue %d, bucketOffset %d \t Evicting %d from %d to %d\n", tmp, old, shift, shiftedValue, bucketOffset, e->fp, e->src, e->dst);
@@ -354,11 +355,16 @@ void insert(int* entries, unsigned int num_entries, unsigned int num_buckets, un
       anychange = 0;
       cudaSendToGPU(d_change, &anychange, sizeof(int));
 
+
+			cudaGetFromGPU(h_graph, d_graph, sizeof(Graph));
+
+			int * tmpbuckets = new int[num_buckets];
+			int * g_tmpbuckets = (int*)cudaMallocAndCpy(sizeof(int)*num_buckets, tmpbuckets);
       // generate random number
       setTime();
       unsigned int randNum = rand() % (num_buckets * 8);
       //std::cout << "Found all collisions, rand num: "<< randNum << std::endl;
-      processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum);
+      processEdges<<<ceil((double)num_entries/1024), 1024>>>(d_graph, d_change, randNum, g_tmpbuckets);
       preprocessTime += getTime();
       cudaDeviceSynchronize();
       //std::cout << "Proccessed edge using " << ceil((double)num_entries/1024) << "threads " << std::endl;
