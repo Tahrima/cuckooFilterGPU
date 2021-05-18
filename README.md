@@ -6,6 +6,7 @@ Fan, Bin, et al. "Cuckoo filter: Practically better than bloom." Proceedings of 
 
 Created in Rutgers University Compilers 415
 
+**Note: This implementation is provided as-is**
 
 
 ## Cuckoo Filter Summary
